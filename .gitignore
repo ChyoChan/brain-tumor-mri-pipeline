@@ -29,17 +29,9 @@ outputs/gradcam/
 outputs/**/*.png
 outputs/**/*.jpg
 
-# LaTeX build artifacts
-Final_Report/*.aux
-Final_Report/*.bbl
-Final_Report/*.blg
-Final_Report/*.brf
-Final_Report/*.fdb_latexmk
-Final_Report/*.fls
-Final_Report/*.log
-Final_Report/*.out
-Final_Report/*.synctex.gz
-Final_Report/*.toc
+# Course reports and paper (kept locally, not on GitHub)
+Report/
+Final_Report/
 
 # Archives and local copies
 *.zip

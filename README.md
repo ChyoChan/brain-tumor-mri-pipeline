@@ -21,7 +21,6 @@ src/                     training, models, data, reports
 scripts/                 CLI entry points (no Colab required)
 notebooks/               experiment logs; import from src/
 outputs/metrics/         saved scores (checked in)
-report/ and Final_Report/  proposal, milestone, paper
 data/ and models/        local only, not committed
 ```
 
@@ -54,7 +53,7 @@ Notebooks under `notebooks/` still run against the same `src/` modules. Prefer t
 - `data/raw` and `data/processed` (MRI and generated patches)
 - `models/**/*.pth`
 - `outputs/figures` and Grad-CAM dumps
-- LaTeX aux files
+- `Report/` and `Final_Report/` (proposal, milestone, paper)
 
 Keep `outputs/metrics/*.json` and `vlm_eval/*.csv`; those are the reported numbers.
 
