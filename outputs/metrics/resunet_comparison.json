@@ -1,0 +1,18 @@
+{
+  "model": "ResUNet",
+  "checkpoint": "/content/drive/MyDrive/comp4471Project/models/segmentation/best_resunet.pth",
+  "params": 32471873,
+  "img_size": 256,
+  "batch_size": 8,
+  "epochs": 130,
+  "lr": 0.0003,
+  "patience": 12,
+  "base_filters": 64,
+  "test_loss": 0.11502731754021212,
+  "test_dice": 0.7430716527533161,
+  "test_iou": 0.6557665098762445,
+  "test_hd95": 11.85262107631141,
+  "test_hausdorff95": 11.85262107631141,
+  "test_hd95_invalid_count": 15,
+  "test_hd95_invalid_rate": 0.06818181818181818
+}

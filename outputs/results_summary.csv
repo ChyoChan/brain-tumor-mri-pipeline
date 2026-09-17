@@ -1,0 +1,9 @@
+Stage,Metric,Value,Target
+Segmentation,Dice,0.7177987265672426,>=0.88
+Segmentation,Hausdorff95,30.447313459581373,<5.0mm
+Segmentation,Sensitivity,0.7507301117243501,N/A
+Segmentation,Specificity,0.974479638835611,N/A
+Classification,Accuracy,0.9900426742532006,>0.95
+Classification,Precision,0.9895155507581441,>0.95
+Classification,Recall,0.9894605780022446,>0.95
+Classification,F1-Score,0.9894561874878854,>0.95

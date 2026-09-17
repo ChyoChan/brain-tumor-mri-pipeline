@@ -1,0 +1,18 @@
+{
+  "model": "U-Net",
+  "checkpoint": "/content/drive/MyDrive/comp4471Project/models/segmentation/best_unet_real_mask.pth",
+  "params": 31036481,
+  "img_size": 256,
+  "batch_size": 8,
+  "epochs": 130,
+  "lr": 0.0003,
+  "patience": 12,
+  "base_filters": 64,
+  "test_loss": 0.13129206977107308,
+  "test_dice": 0.7102199488106341,
+  "test_iou": 0.6230374086852138,
+  "test_hd95": 11.553934029536634,
+  "test_hausdorff95": 11.553934029536634,
+  "test_hd95_invalid_count": 21,
+  "test_hd95_invalid_rate": 0.09545454545454546
+}

@@ -1,0 +1,12 @@
+\begin{abstract}
+Brain tumors exhibit substantial morphological and malignancy variability, leading to misdiagnosis rates exceeding 20\% with routine MRI 
+interpretation and delaying neuro-oncology interventions. We propose an explainable, multi-stage deep learning framework that integrates
+ tumor segmentation, classification, and structured summary generation to create a clinical decision support system. The pipeline first employs 
+ a ResUNet to localize tumor regions on MRI slices. It then uses predicted masks to extract region-of-interest (ROI) crops, combines them 
+ with the original full image in a dual-input architecture, and feeds the result to a fine-tuned ResNet50 classifier to predict one of four 
+ classes: glioma, meningioma, pituitary tumor, or no tumor. The system provides explainability through Grad-CAM heatmaps and a MedGemma VLM that generates structured clinical summaries with a deterministic template fallback for reliability.
+  Moreover, the quantitative stage-consistency metrics and qualitative 
+  evaluations confirm strong alignment across pipeline stages. We used extensive ablation studies and qualitative evaluations to demonstrate
+   that the framework delivers high performance while producing clinically coherent, trustworthy explanations.
+
+\end{abstract}

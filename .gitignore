@@ -1,0 +1,46 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.env
+.python-version
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Notebooks
+.ipynb_checkpoints/
+
+# Local data and trained weights (too large for GitHub)
+data/raw/
+data/processed/
+models/**/*.pth
+*.ckpt
+*.h5
+
+# Generated figures (metrics JSON/CSV are kept)
+outputs/figures/
+outputs/gradcam/
+outputs/**/*.png
+outputs/**/*.jpg
+
+# LaTeX build artifacts
+Final_Report/*.aux
+Final_Report/*.bbl
+Final_Report/*.blg
+Final_Report/*.brf
+Final_Report/*.fdb_latexmk
+Final_Report/*.fls
+Final_Report/*.log
+Final_Report/*.out
+Final_Report/*.synctex.gz
+Final_Report/*.toc
+
+# Archives and local copies
+*.zip
+comp4471Project_BioGPT/

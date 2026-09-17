@@ -1,0 +1,106 @@
+{
+  "data_root": "/content/drive/MyDrive/comp4471Project/data",
+  "split_sizes": {
+    "train": 1753,
+    "val": 219,
+    "test": 220
+  },
+  "shared_hyperparameters": {
+    "img_size": 256,
+    "batch_size": 8,
+    "epochs": 130,
+    "lr": 0.0003,
+    "patience": 12,
+    "base_filters": 64,
+    "weight_decay": 1e-05,
+    "threshold": 0.5
+  },
+  "unet": {
+    "model": "U-Net",
+    "checkpoint": "/content/drive/MyDrive/comp4471Project/models/segmentation/best_unet_real_mask.pth",
+    "params": 31036481,
+    "img_size": 256,
+    "batch_size": 8,
+    "epochs": 130,
+    "lr": 0.0003,
+    "patience": 12,
+    "base_filters": 64,
+    "test_loss": 0.13129206977107308,
+    "test_dice": 0.7102199488106341,
+    "test_iou": 0.6230374086852138,
+    "test_hd95": 11.553934029536634,
+    "test_hausdorff95": 11.553934029536634,
+    "test_hd95_invalid_count": 21,
+    "test_hd95_invalid_rate": 0.09545454545454546
+  },
+  "resunet": {
+    "model": "ResUNet",
+    "checkpoint": "/content/drive/MyDrive/comp4471Project/models/segmentation/best_resunet.pth",
+    "params": 32471873,
+    "img_size": 256,
+    "batch_size": 8,
+    "epochs": 130,
+    "lr": 0.0003,
+    "patience": 12,
+    "base_filters": 64,
+    "test_loss": 0.11502731754021212,
+    "test_dice": 0.7430716527533161,
+    "test_iou": 0.6557665098762445,
+    "test_hd95": 11.85262107631141,
+    "test_hausdorff95": 11.85262107631141,
+    "test_hd95_invalid_count": 15,
+    "test_hd95_invalid_rate": 0.06818181818181818
+  },
+  "attention_unet": {
+    "model": "Attention U-Net",
+    "checkpoint": "/content/drive/MyDrive/comp4471Project/models/segmentation/best_attention_unet.pth",
+    "params": 31388013,
+    "img_size": 256,
+    "batch_size": 8,
+    "epochs": 130,
+    "lr": 0.0003,
+    "patience": 12,
+    "base_filters": 64,
+    "test_loss": 0.12022738768295808,
+    "test_dice": 0.7359855443873644,
+    "test_iou": 0.6471729164168013,
+    "test_hd95": 14.56073103988584,
+    "test_hd95_invalid_count": 14,
+    "test_hd95_invalid_rate": 0.06363636363636363
+  },
+  "comparison_rows": [
+    {
+      "model": "U-Net",
+      "test_dice": 0.7102199488106341,
+      "test_iou": 0.6230374086852138,
+      "test_hd95": 11.553934029536634,
+      "test_hd95_invalid_count": 21.0,
+      "test_hd95_invalid_rate": 0.09545454545454546,
+      "test_loss": 0.13129206977107308,
+      "params": 31036481.0,
+      "checkpoint": "/content/drive/MyDrive/comp4471Project/models/segmentation/best_unet_real_mask.pth"
+    },
+    {
+      "model": "ResUNet",
+      "test_dice": 0.7430716527533161,
+      "test_iou": 0.6557665098762445,
+      "test_hd95": 11.85262107631141,
+      "test_hd95_invalid_count": 15.0,
+      "test_hd95_invalid_rate": 0.06818181818181818,
+      "test_loss": 0.11502731754021212,
+      "params": 32471873.0,
+      "checkpoint": "/content/drive/MyDrive/comp4471Project/models/segmentation/best_resunet.pth"
+    },
+    {
+      "model": "Attention U-Net",
+      "test_dice": 0.7359855443873644,
+      "test_iou": 0.6471729164168013,
+      "test_hd95": 14.56073103988584,
+      "test_hd95_invalid_count": 14,
+      "test_hd95_invalid_rate": 0.06363636363636363,
+      "test_loss": 0.12022738768295808,
+      "params": 31388013,
+      "checkpoint": "/content/drive/MyDrive/comp4471Project/models/segmentation/best_attention_unet.pth"
+    }
+  ]
+}

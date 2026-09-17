@@ -1,0 +1,9 @@
+{
+  "model": "ResNet50 (Cropped Input)",
+  "source": "user_provided_manual_entry",
+  "test_loss": 0.2050,
+  "accuracy": 0.9516,
+  "precision": 0.9498,
+  "recall": 0.9502,
+  "f1": 0.9496
+}

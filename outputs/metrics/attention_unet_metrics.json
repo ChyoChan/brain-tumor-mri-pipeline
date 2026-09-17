@@ -1,0 +1,17 @@
+{
+  "model": "Attention U-Net",
+  "checkpoint": "/content/drive/MyDrive/comp4471Project/models/segmentation/best_attention_unet.pth",
+  "params": 31388013,
+  "img_size": 256,
+  "batch_size": 8,
+  "epochs": 130,
+  "lr": 0.0003,
+  "patience": 12,
+  "base_filters": 64,
+  "test_loss": 0.12022738768295808,
+  "test_dice": 0.7359855443873644,
+  "test_iou": 0.6471729164168013,
+  "test_hd95": 14.56073103988584,
+  "test_hd95_invalid_count": 14,
+  "test_hd95_invalid_rate": 0.06363636363636363
+}
