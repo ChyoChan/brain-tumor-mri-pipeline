@@ -16,9 +16,6 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader
 from tqdm.auto import tqdm
 
-from medpy.metric.binary import dc as dice_coefficient
-from medpy.metric.binary import hd95 as hausdorff_distance_95
-
 from src.utils import AverageMeter, EarlyStopping, fmt_time
 
 
@@ -532,15 +529,16 @@ def predict_mask(
     image: np.ndarray,
     device: torch.device,
     threshold: float = 0.5,
+    ensure_nonempty: bool = False,
 ) -> np.ndarray:
     """Run U-Net inference on a single grayscale image (H, W) → binary mask (H, W).
 
     The image is resized to 256×256 for the network, then the mask is
     resized back to the original spatial dimensions.
 
-    Robustness: if the fixed threshold produces an empty mask, we apply an
-    adaptive fallback threshold based on the confidence peak to reduce false
-    empty predictions.
+    Empty predictions remain empty by default. Set ``ensure_nonempty=True``
+    only when the caller already knows a lesion is present; forcing a mask on
+    an unknown image creates false-positive ROIs for no-tumor inputs.
     """
     model.eval()
     h, w = image.shape[:2]
@@ -562,14 +560,12 @@ def predict_mask(
     )
     mask_full = (prob_full > threshold).astype(np.uint8)
 
-    # Fallback for occasional empty predictions:
-    # 1) use a softer threshold tied to the peak probability.
-    if mask_full.sum() == 0 and float(prob_full.max()) > 0.0:
+    # Optional fallback for known-positive images only.
+    if ensure_nonempty and mask_full.sum() == 0 and float(prob_full.max()) > 0.0:
         adaptive_thr = float(np.clip(prob_full.max() * 0.5, 0.10, max(0.10, threshold - 1e-3)))
         mask_full = (prob_full > adaptive_thr).astype(np.uint8)
 
-    # 2) if still empty, use top-probability region at full resolution.
-    if mask_full.sum() == 0:
+    if ensure_nonempty and mask_full.sum() == 0:
         q = float(np.quantile(prob_full, 0.995))
         mask_full = (prob_full >= q).astype(np.uint8)
 
@@ -618,6 +614,9 @@ def compute_segmentation_metrics(
     voxel_spacing: Tuple[float, ...] = (1.0, 1.0),
 ) -> Dict[str, float]:
     """Compute Dice, IoU, HD95, sensitivity, specificity for binary masks."""
+    from medpy.metric.binary import dc as dice_coefficient
+    from medpy.metric.binary import hd95 as hausdorff_distance_95
+
     pred_bin = (pred > 0).astype(np.uint8)
     gt_bin = (gt > 0).astype(np.uint8)
     pred_fg = pred_bin.astype(bool)

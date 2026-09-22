@@ -17,6 +17,7 @@ import albumentations as A
 from albumentations.pytorch import ToTensorV2
 
 from src.constants import CLASS_NAMES, CLASS_TO_IDX, FOLDER_ALIASES, IMAGE_EXTS
+from src.roi import crop_tumor_region
 from src.utils import ensure_dir  # noqa: F401 – used downstream
 
 
@@ -437,47 +438,7 @@ class SegmentationDataset(Dataset):
         return img_tensor, mask_tensor
 
 
-# ------------------------------------------------------------------ #
-#  Post-segmentation: crop tumor ROI from prediction mask
-# ------------------------------------------------------------------ #
-
-def crop_tumor_region(
-    image: np.ndarray,
-    mask: np.ndarray,
-    margin: int = 10,
-    output_size: Tuple[int, int] = (224, 224),
-) -> Tuple[np.ndarray, np.ndarray]:
-    """Crop the bounding box of the tumor region + margin, then resize.
-
-    Returns (cropped_image, cropped_mask) resized to *output_size*.
-    """
-    from skimage.measure import label, regionprops
-    from PIL import Image as PILImage
-
-    labeled = label(mask)
-    regions = regionprops(labeled)
-
-    if len(regions) == 0:
-        img_resized = np.array(PILImage.fromarray(image).resize(output_size))
-        mask_resized = np.zeros(output_size, dtype=np.uint8)
-        return img_resized, mask_resized
-
-    largest = max(regions, key=lambda r: r.area)
-    rmin, cmin, rmax, cmax = largest.bbox
-    h, w = image.shape[:2]
-    rmin = max(0, rmin - margin)
-    cmin = max(0, cmin - margin)
-    rmax = min(h, rmax + margin)
-    cmax = min(w, cmax + margin)
-
-    cropped_img = image[rmin:rmax, cmin:cmax]
-    cropped_mask = mask[rmin:rmax, cmin:cmax]
-
-    cropped_img = np.array(PILImage.fromarray(cropped_img).resize(output_size))
-    cropped_mask = np.array(
-        PILImage.fromarray(cropped_mask).resize(output_size, resample=PILImage.NEAREST)
-    )
-    return cropped_img, cropped_mask
+# crop_tumor_region lives in src.roi and is re-exported above.
 
 # ------------------------------------------------------------------ #
 #  Classification patches from predicted tumor ROIs
@@ -505,8 +466,9 @@ def generate_classification_patches(
 ) -> List[Tuple[str, int]]:
     """Crop tumor patches for classification using a segmentation model.
 
-    ``notumor`` images are resized without a mask. Empty predictions fall back
-    to a full-image resize so the classifier still gets an example.
+    Every class follows the same deployable preprocessing contract: run the
+    segmenter, crop a non-empty prediction, otherwise use the full image. This
+    avoids leaking the ground-truth label into dual-classifier training.
     """
     from PIL import Image as PILImage
     from tqdm.auto import tqdm
@@ -521,7 +483,7 @@ def generate_classification_patches(
         img = np.array(PILImage.open(img_path).convert("L"))
         cls_name = CLASS_NAMES[label]
 
-        if cls_name != "notumor" and seg_model is not None:
+        if seg_model is not None:
             mask = predict_mask(seg_model, img, device)
             if mask.sum() > 0:
                 img_crop, _ = crop_tumor_region(

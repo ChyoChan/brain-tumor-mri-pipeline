@@ -544,7 +544,7 @@ def generate_template_report(
             f"The overall appearance is therefore most consistent with a normal or non-neoplastic study."
         )
         impression = (
-            f"Impression: No radiologically evident brain tumor. Diagnostic confidence is {confidence_level} ({confidence:.1%}). "
+            f"Impression: No radiologically evident brain tumor. The uncalibrated model score is {confidence_level} ({confidence:.1%}). "
             f"There is no class-specific imaging evidence to support a tumor diagnosis on the current exam."
         )
         recommendation = (
@@ -558,7 +558,7 @@ def generate_template_report(
             "The Grad-CAM attention map highlights the same region, supporting the classifier's localization."
         )
         impression = (
-            f"Impression: Imaging features are most suggestive of glioma with {confidence_level} confidence ({confidence:.1%}). "
+            f"Impression: Imaging features are most suggestive of glioma with a {confidence_level} uncalibrated model score ({confidence:.1%}). "
             "The lesion appears intra-axial and infiltrative, making glioma the leading consideration."
         )
         recommendation = (
@@ -572,7 +572,7 @@ def generate_template_report(
             "A broad-based interface with the adjacent dura is implied by the classifier's localization."
         )
         impression = (
-            f"Impression: Imaging appearance favors meningioma with {confidence_level} confidence ({confidence:.1%}). "
+            f"Impression: Imaging appearance favors meningioma with a {confidence_level} uncalibrated model score ({confidence:.1%}). "
             "The lesion is best characterized as an extra-axial dural-based tumor on the current exam."
         )
         recommendation = (
@@ -586,7 +586,7 @@ def generate_template_report(
             "The appearance is therefore most compatible with a pituitary adenoma-type process."
         )
         impression = (
-            f"Impression: Imaging features are most suggestive of pituitary tumor with {confidence_level} confidence ({confidence:.1%}). "
+            f"Impression: Imaging features are most suggestive of pituitary tumor with a {confidence_level} uncalibrated model score ({confidence:.1%}). "
             "The lesion localizes to the sellar/suprasellar compartment."
         )
         recommendation = (

@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MRI Pipeline Workstation</title>
+  <link rel="stylesheet" href="/static/styles.css?v=4" />
+</head>
+<body>
+  <div class="shell">
+    <aside class="rail">
+      <div class="brand">
+        <div class="mark" aria-hidden="true"></div>
+        <div>
+          <p class="eyebrow">COMP4471</p>
+          <h1>MRI workstation</h1>
+        </div>
+      </div>
+      <p class="lede">Upload a brain MRI slice. The local pipeline runs segmentation, ROI cropping, validated ResNet50 classification, spatial explanation, and a structured report.</p>
+
+      <label class="drop" id="dropzone">
+        <input id="file-input" type="file" accept="image/png,image/jpeg,image/jpg,image/tif,image/tiff,.png,.jpg,.jpeg,.tif" hidden />
+        <strong>Drop an MRI here</strong>
+        <span>or click to choose a file</span>
+        <em id="file-name">No file selected</em>
+      </label>
+
+      <div class="samples" id="samples"></div>
+
+      <div class="controls">
+        <label>
+          Segmentation
+          <select id="seg-model">
+            <option value="resunet" selected>ResUNet</option>
+            <option value="unet">U-Net</option>
+            <option value="attention_unet">Attention U-Net</option>
+          </select>
+        </label>
+        <label>
+          Classifier
+          <select id="cls-mode">
+            <option value="full" selected>Full image (recommended)</option>
+            <option value="dual">Gated dual-input (experimental)</option>
+          </select>
+        </label>
+        <button id="run-btn" type="button">Run pipeline</button>
+      </div>
+
+      <dl class="meta" id="health-meta">
+        <div><dt>Device</dt><dd id="device-label">…</dd></div>
+        <div><dt>Status</dt><dd id="status-label">checking checkpoints</dd></div>
+      </dl>
+    </aside>
+
+    <main class="stage">
+      <header class="stage-head">
+        <div>
+          <p class="eyebrow" id="result-kicker">Waiting</p>
+          <h2 id="result-title">Load a slice to begin</h2>
+        </div>
+        <div class="badge" id="pred-badge" hidden></div>
+      </header>
+
+      <p class="error" id="error-box" hidden></p>
+
+      <section class="viewer" id="viewer">
+        <article class="pane"><h3>Original</h3><div class="frame empty" data-slot="original">MRI</div></article>
+        <article class="pane"><h3>Segmentation</h3><div class="frame empty" data-slot="segmentation">mask</div></article>
+        <article class="pane"><h3>ROI crop</h3><div class="frame empty" data-slot="crop">tumor crop</div></article>
+        <article class="pane"><h3 id="explanation-title">Grad-CAM</h3><div class="frame empty" data-slot="gradcam">attention</div></article>
+      </section>
+
+      <section class="findings" id="findings" hidden>
+        <div class="probs" id="probs"></div>
+        <article class="report">
+          <div class="report-head">
+            <h3>Structured report</h3>
+            <button id="copy-btn" type="button">Copy</button>
+          </div>
+          <pre id="report-text"></pre>
+          <p class="footnotes" id="footnotes"></p>
+        </article>
+      </section>
+    </main>
+  </div>
+  <div class="busy" id="busy" hidden>
+    <div class="spinner"></div>
+    <p>Running segmentation → crop → classify → explain</p>
+  </div>
+  <script src="/static/app.js?v=4"></script>
+</body>
+</html>

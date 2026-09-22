@@ -1,0 +1,218 @@
+:root {
+  --bg: #081018;
+  --rail: #0d1824;
+  --ink: #e7eef6;
+  --muted: #8aa0b5;
+  --line: rgba(140, 180, 210, 0.16);
+  --accent: #7ee0d0;
+  --accent-2: #f3c07a;
+  --danger: #ff8b7a;
+  --frame: #05090e;
+  --shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; min-height: 100%; }
+body {
+  font-family: "Avenir Next", "Segoe UI", sans-serif;
+  color: var(--ink);
+  background:
+    radial-gradient(1200px 500px at 10% -10%, rgba(126, 224, 208, 0.08), transparent 50%),
+    radial-gradient(900px 600px at 100% 0%, rgba(243, 192, 122, 0.08), transparent 45%),
+    var(--bg);
+}
+
+.shell {
+  display: grid;
+  grid-template-columns: 360px 1fr;
+  min-height: 100vh;
+}
+
+.rail {
+  padding: 28px 24px 32px;
+  background: color-mix(in srgb, var(--rail) 92%, black);
+  border-right: 1px solid var(--line);
+}
+
+.brand { display: flex; gap: 12px; align-items: center; }
+.mark {
+  width: 42px; height: 42px; border-radius: 14px;
+  background:
+    conic-gradient(from 210deg, #7ee0d0, #5b8cff, #f3c07a, #7ee0d0);
+  mask: radial-gradient(circle at 50% 50%, transparent 36%, black 37%);
+  box-shadow: inset 0 0 0 2px rgba(255,255,255,0.08);
+}
+.eyebrow {
+  margin: 0;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  font-size: 11px;
+  color: var(--accent);
+}
+h1, h2, h3 { margin: 0; font-weight: 650; letter-spacing: -0.03em; }
+h1 { font-size: 22px; }
+.lede { color: var(--muted); line-height: 1.5; font-size: 14px; }
+
+.drop {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 22px 0 16px;
+  padding: 18px;
+  border: 1px dashed color-mix(in srgb, var(--accent) 45%, transparent);
+  border-radius: 16px;
+  background: rgba(126, 224, 208, 0.04);
+  cursor: pointer;
+}
+.drop.drag { background: rgba(126, 224, 208, 0.12); }
+.drop strong { font-size: 15px; }
+.drop span, .drop em { color: var(--muted); font-size: 13px; font-style: normal; }
+
+.samples { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.samples button {
+  border: 1px solid var(--line);
+  background: #102131;
+  color: var(--ink);
+  border-radius: 12px;
+  padding: 8px 10px;
+  text-align: left;
+  cursor: pointer;
+}
+.samples button.active { outline: 2px solid var(--accent); }
+.samples img { width: 100%; height: 54px; object-fit: cover; border-radius: 8px; display: block; margin-bottom: 6px; filter: grayscale(0.2) contrast(1.05); }
+.samples small { color: var(--muted); }
+
+.controls { display: grid; gap: 10px; margin-top: 18px; }
+label { display: grid; gap: 6px; font-size: 12px; color: var(--muted); }
+select, button {
+  font: inherit;
+}
+select {
+  color: var(--ink);
+  background: #102131;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+#run-btn {
+  margin-top: 6px;
+  border: 0;
+  border-radius: 14px;
+  padding: 12px 14px;
+  background: linear-gradient(180deg, #9af0e2, #63cfc0);
+  color: #06221d;
+  font-weight: 700;
+  cursor: pointer;
+}
+#run-btn:disabled { opacity: 0.5; cursor: wait; }
+
+.meta { margin: 22px 0 0; display: grid; gap: 8px; }
+.meta div { display: flex; justify-content: space-between; gap: 12px; font-size: 13px; }
+.meta dt { color: var(--muted); }
+.meta dd { margin: 0; }
+
+.stage { padding: 28px 32px 40px; }
+.stage-head { display: flex; justify-content: space-between; align-items: start; gap: 16px; margin-bottom: 18px; }
+.badge {
+  border-radius: 999px;
+  padding: 8px 14px;
+  background: rgba(243, 192, 122, 0.14);
+  color: var(--accent-2);
+  font-weight: 700;
+}
+.badge.ok { background: rgba(126,224,208,.14); color: var(--accent); }
+.error {
+  background: rgba(255, 139, 122, 0.12);
+  color: var(--danger);
+  padding: 12px 14px;
+  border-radius: 12px;
+}
+
+.viewer {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+.pane {
+  background: rgba(8, 16, 24, 0.7);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: var(--shadow);
+}
+.pane h3 {
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  padding: 10px 12px 0;
+}
+.frame {
+  margin: 10px;
+  height: 250px;
+  background: var(--frame);
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  color: #31455a;
+}
+.frame img { width: 100%; height: 100%; object-fit: contain; background: #000; }
+
+.findings {
+  margin-top: 18px;
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  gap: 14px;
+}
+.probs, .report {
+  background: rgba(8, 16, 24, 0.7);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 16px;
+}
+.prob-row { display: grid; grid-template-columns: 92px 1fr 48px; gap: 8px; align-items: center; margin: 8px 0; font-size: 13px; }
+.bar { height: 8px; background: #173042; border-radius: 99px; overflow: hidden; }
+.bar > span { display: block; height: 100%; background: var(--accent); }
+.report-head { display: flex; justify-content: space-between; align-items: center; }
+#copy-btn {
+  background: transparent;
+  color: var(--accent);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+pre {
+  white-space: pre-wrap;
+  font-family: "Iowan Old Style", "Palatino Linotype", serif;
+  font-size: 15px;
+  line-height: 1.55;
+  color: #dce7f2;
+}
+.footnotes { color: var(--muted); font-size: 12px; }
+
+.busy {
+  position: fixed; inset: 0;
+  background: rgba(5, 10, 16, 0.62);
+  display: grid; place-items: center;
+  backdrop-filter: blur(8px);
+}
+.busy p { margin: 12px 0 0; color: var(--muted); }
+.spinner {
+  width: 42px; height: 42px; border-radius: 50%;
+  border: 3px solid rgba(126,224,208,.2);
+  border-top-color: var(--accent);
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+@media (max-width: 1100px) {
+  .shell { grid-template-columns: 1fr; }
+  .viewer, .findings { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 720px) {
+  .viewer, .findings, .samples { grid-template-columns: 1fr; }
+  .frame { height: 220px; }
+}
