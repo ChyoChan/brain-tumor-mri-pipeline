@@ -7,7 +7,7 @@ Binary segmentation (tumor = 1, background = 0).
 
 import time
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Tuple
 
 import numpy as np
 import torch
@@ -582,26 +582,6 @@ def predict_mask(
             pass
 
     return mask_full
-
-
-@torch.no_grad()
-def predict_batch(
-    model: nn.Module,
-    loader: DataLoader,
-    device: torch.device,
-    threshold: float = 0.5,
-) -> List[np.ndarray]:
-    """Run inference on a DataLoader and return a list of binary masks."""
-    model.eval()
-    masks = []
-    for images, _ in tqdm(loader, desc="Predicting", leave=False):
-        images = images.to(device)
-        logits = model(images)
-        probs = torch.sigmoid(logits)
-        preds = (probs > threshold).cpu().numpy()
-        for i in range(preds.shape[0]):
-            masks.append(preds[i].squeeze().astype(np.uint8))
-    return masks
 
 
 # ------------------------------------------------------------------ #

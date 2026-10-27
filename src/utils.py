@@ -4,7 +4,6 @@ Utility functions: seeding, device selection, metric helpers, I/O.
 
 import os
 import random
-import textwrap
 from pathlib import Path
 
 import numpy as np
@@ -42,12 +41,6 @@ def load_config(config_path: str | None = None) -> dict:
         return yaml.safe_load(f)
 
 
-def ensure_dir(path: str) -> Path:
-    p = Path(path)
-    p.mkdir(parents=True, exist_ok=True)
-    return p
-
-
 def fmt_time(seconds: float) -> str:
     if seconds < 60:
         return f"{seconds:.0f}s"
@@ -56,10 +49,6 @@ def fmt_time(seconds: float) -> str:
         return f"{m}m {s:02d}s"
     h, m = divmod(m, 60)
     return f"{h}h {m:02d}m {s:02d}s"
-
-
-def wrap_text(text: str, width: int = 60) -> str:
-    return textwrap.fill(text, width=width)
 
 
 class EarlyStopping:

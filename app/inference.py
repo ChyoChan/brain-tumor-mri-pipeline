@@ -146,12 +146,6 @@ def _overlay_mask(gray: np.ndarray, mask: np.ndarray) -> np.ndarray:
     return np.clip(blended, 0, 255).astype(np.uint8)
 
 
-def _gray_to_rgb(gray: np.ndarray) -> np.ndarray:
-    if gray.ndim == 2:
-        return cv2.cvtColor(gray, cv2.COLOR_GRAY2RGB)
-    return gray
-
-
 def _build_dual_batch(
     crop_tensor: torch.Tensor,
     orig_tensor: torch.Tensor,
@@ -378,9 +372,7 @@ class PipelineRuntime:
                 gray, mask, margin=20, output_size=(self.input_size, self.input_size)
             )
             orig_rgb = Image.fromarray(gray).convert("RGB")
-            crop_rgb = Image.fromarray(crop).convert("RGB")
             orig_tensor = self.val_tf(orig_rgb)
-            crop_tensor = self.val_tf(crop_rgb)
 
             # The legacy dual checkpoint was trained with a full-size first view for
             # no-tumor images, but an ROI first view for tumor images. A full-image
@@ -401,6 +393,7 @@ class PipelineRuntime:
 
             if classifier_mode == "dual":
                 cls_model = self._load_cls("dual")
+                crop_tensor = self.val_tf(Image.fromarray(crop).convert("RGB"))
                 batch, crop_source = _build_dual_batch(crop_tensor, orig_tensor, gate_idx)
                 if crop_source == "full_image_gate":
                     crop = np.array(orig_rgb.resize((self.input_size, self.input_size)))
@@ -408,16 +401,11 @@ class PipelineRuntime:
                 notes.append(
                     "Dual mode uses the full-image ResNet50 as a no-tumor gate to match its training input contract."
                 )
-            else:
-                cls_model = full_model
-                crop_source = "not_used"
-                batch = orig_batch
-
-            if classifier_mode == "dual":
                 with torch.inference_mode():
                     logits = cls_model(batch)
                     probs = torch.softmax(logits, dim=1)[0].detach().cpu().numpy()
             else:
+                crop_source = "not_used"
                 probs = full_probs.detach().cpu().numpy()
             pred_idx = int(probs.argmax())
             confidence = float(probs[pred_idx])
@@ -448,7 +436,7 @@ class PipelineRuntime:
                         explanation_model.layer4,
                         pred_idx,
                     )
-                gradcam_overlay = overlay_gradcam(_gray_to_rgb(gray), heatmap, alpha=0.45)
+                gradcam_overlay = overlay_gradcam(gray, heatmap, alpha=0.45)
             except Exception as exc:
                 logger.warning("Grad-CAM unavailable: %s", exc)
                 notes.append(f"Grad-CAM unavailable ({exc.__class__.__name__}).")

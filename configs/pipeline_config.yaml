@@ -13,7 +13,6 @@ paths:
   output_dir: "outputs"
 
 dataset:
-  kaggle_dataset: "sartajbhuvaji/brain-tumor-classification-mri"
   classes: ["glioma", "meningioma", "pituitary", "notumor"]
   num_classes: 4
   split_ratios: [0.8, 0.1, 0.1]   # train / val / test
@@ -29,8 +28,6 @@ segmentation:
   weight_decay: 0.00001
   epochs: 100
   patience: 15
-  target_dice: 0.88
-  target_hausdorff: 5.0
   save_path: "models/segmentation/best_unet.pth"
 
 classification:
@@ -52,9 +49,3 @@ classification:
   grid_search:
     learning_rates: [0.001, 0.0005, 0.0001, 0.00005]
     batch_sizes: [16, 32, 64]
-
-explainability:
-  gradcam_target_layer: "layer4"
-  vlm_model: "google/medgemma-1.5-4b-it"
-  report_max_tokens: 256
-  report_temperature: 0.7

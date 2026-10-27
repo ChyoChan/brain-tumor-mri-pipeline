@@ -118,44 +118,6 @@ def compute_stage_consistency_iou(
     return float(intersection / union)
 
 
-def generate_uncertainty_map(
-    heatmap: np.ndarray,
-    confidence: Optional[float] = None,
-    segmentation_mask: Optional[np.ndarray] = None,
-) -> np.ndarray:
-    """Create a spatial uncertainty map from Grad-CAM evidence strength."""
-    cam = _normalize_heatmap(heatmap)
-
-    # Highest uncertainty around ambiguous activation values (~0.5).
-    uncertainty = 1.0 - np.abs((2.0 * cam) - 1.0)
-
-    if segmentation_mask is not None:
-        seg_bin = _to_binary_mask(segmentation_mask, threshold=0.5)
-        if seg_bin.shape != uncertainty.shape:
-            seg_bin = cv2.resize(
-                seg_bin.astype(np.uint8),
-                (uncertainty.shape[1], uncertainty.shape[0]),
-                interpolation=cv2.INTER_NEAREST,
-            ).astype(bool)
-
-        kernel = np.ones((3, 3), np.uint8)
-        boundary = cv2.morphologyEx(seg_bin.astype(np.uint8), cv2.MORPH_GRADIENT, kernel).astype(np.float32)
-        roi_hint = np.clip(seg_bin.astype(np.float32) + boundary, 0.0, 1.0)
-        uncertainty = np.clip(0.75 * uncertainty + 0.25 * roi_hint, 0.0, 1.0)
-
-    if confidence is not None:
-        conf = float(np.clip(confidence, 0.0, 1.0))
-        scale = float(np.clip(1.0 + (0.70 - conf), 0.6, 1.6))
-        uncertainty = np.clip(uncertainty * scale, 0.0, 1.0)
-
-    uncertainty = cv2.GaussianBlur(uncertainty, (0, 0), sigmaX=1.2)
-    min_v, max_v = float(uncertainty.min()), float(uncertainty.max())
-    if max_v - min_v > 1e-8:
-        uncertainty = (uncertainty - min_v) / (max_v - min_v)
-
-    return uncertainty.astype(np.float32)
-
-
 def _build_stage_consistency_note(stage_iou: Optional[float], warning_threshold: float = 0.2) -> str:
     if stage_iou is None:
         return "Stage consistency IoU: unavailable (no segmentation mask provided)."
@@ -609,7 +571,6 @@ class CLIPReportGenerator:
         decoder_model_name: str = "google/medgemma-1.5-4b-it",
         model_name: str = None,          # compatibility with old notebook calls
         max_new_tokens: int = 220,
-        temperature: float = 0.2,
         repetition_penalty: float = 1.3,
     ):
         if model_name is not None:
@@ -618,7 +579,6 @@ class CLIPReportGenerator:
         self.device = device
         self.decoder_model_name = decoder_model_name
         self.max_new_tokens = max_new_tokens
-        self.temperature = temperature
         self.repetition_penalty = repetition_penalty
         self._decoder = None
         self._tokenizer = None

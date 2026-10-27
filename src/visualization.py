@@ -3,7 +3,7 @@ Visualization utilities: segmentation overlays, Grad-CAM, confusion matrices,
 training curves, and qualitative side-by-side panels.
 """
 
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
@@ -12,38 +12,6 @@ import numpy as np
 import seaborn as sns
 
 from src.constants import CLASS_NAMES
-
-
-def plot_segmentation_overlay(
-    image: np.ndarray,
-    gt_mask: np.ndarray,
-    pred_mask: np.ndarray,
-    title: str = "",
-    save_path: Optional[str] = None,
-) -> None:
-    """Side-by-side: original | GT overlay | predicted overlay."""
-    fig, axes = plt.subplots(1, 3, figsize=(15, 5))
-
-    axes[0].imshow(image, cmap="gray")
-    axes[0].set_title("Original MRI")
-    axes[0].axis("off")
-
-    axes[1].imshow(image, cmap="gray")
-    axes[1].imshow(gt_mask, cmap="Reds", alpha=0.4)
-    axes[1].set_title("Ground-Truth Mask")
-    axes[1].axis("off")
-
-    axes[2].imshow(image, cmap="gray")
-    axes[2].imshow(pred_mask, cmap="Blues", alpha=0.4)
-    axes[2].set_title("Predicted Mask")
-    axes[2].axis("off")
-
-    if title:
-        fig.suptitle(title, fontsize=14, fontweight="bold")
-    plt.tight_layout()
-    if save_path:
-        fig.savefig(save_path, dpi=150, bbox_inches="tight")
-    plt.show()
 
 
 def plot_confusion_matrix(

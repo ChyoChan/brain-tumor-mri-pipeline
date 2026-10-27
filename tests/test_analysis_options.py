@@ -131,7 +131,8 @@ def test_gallery_endpoints_serve_selected_images(catalog):
         app.dependency_overrides.clear()
 
 
-def test_disabling_report_skips_generator_but_preserves_model_results(monkeypatch):
+@pytest.mark.parametrize("classifier_mode", ["full", "dual"])
+def test_disabling_report_skips_generator_but_preserves_model_results(monkeypatch, classifier_mode):
     runtime = object.__new__(PipelineRuntime)
     runtime.device = torch.device("cpu")
     runtime._lock = threading.Lock()
@@ -140,11 +141,13 @@ def test_disabling_report_skips_generator_but_preserves_model_results(monkeypatc
     calls = {"segment": 0, "classify": 0, "attention": 0, "report": 0}
 
     class TinyClassifier(nn.Module):
-        def __init__(self):
+        def __init__(self, channels):
             super().__init__()
             self.layer4 = nn.Identity()
+            self.channels = channels
 
         def forward(self, batch):
+            assert batch.shape == (1, self.channels, 8, 8)
             calls["classify"] += 1
             return torch.tensor([[3.0, 0.0, 0.0, 0.0]])
 
@@ -161,18 +164,18 @@ def test_disabling_report_skips_generator_but_preserves_model_results(monkeypatc
         return "Findings: template"
 
     runtime._load_seg = lambda name: nn.Identity()
-    runtime._load_cls = lambda mode: TinyClassifier()
+    runtime._load_cls = lambda mode: TinyClassifier(6 if mode == "dual" else 3)
     runtime._resolve_seg_path = lambda name: Path("seg.pth")
     runtime._resolve_full_cls = lambda: Path("full.pth")
     monkeypatch.setattr(inference, "predict_mask", mask)
     monkeypatch.setattr(inference, "generate_gradcam", attention)
     monkeypatch.setattr(inference, "generate_template_report", report)
     image = Image.new("RGB", (8, 8))
-    without = runtime.analyze(image, "scan.png", "unet", "full", False)
-    assert calls == {"segment": 1, "classify": 1, "attention": 1, "report": 0}
+    without = runtime.analyze(image, "scan.png", "unet", classifier_mode, False)
+    assert calls == {"segment": 1, "classify": 2 if classifier_mode == "dual" else 1, "attention": 1, "report": 0}
     assert without["report"] is None
     assert without["report_generated"] is False
-    with_report = runtime.analyze(image, "scan.png", "unet", "full", True)
+    with_report = runtime.analyze(image, "scan.png", "unet", classifier_mode, True)
     assert calls["report"] == 1
     assert with_report["report"] == "Findings: template"
     for field in ("prediction", "probabilities", "images"):

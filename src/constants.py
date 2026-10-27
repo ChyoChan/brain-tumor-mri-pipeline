@@ -19,10 +19,4 @@ FOLDER_ALIASES: Dict[str, List[str]] = {
     "notumor": ["no_tumor", "notumor", "Notumor", "No_Tumor", "no tumor"],
 }
 
-SEG_FOLDER_ALIASES: Dict[str, List[str]] = {
-    "glioma": ["Glioma", "glioma", "glioma_tumor"],
-    "meningioma": ["Meningioma", "meningioma", "meningioma_tumor"],
-    "pituitary": ["Pituitary tumor", "pituitary_tumor", "pituitary", "Pituitary"],
-}
-
 IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".tif"}

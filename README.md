@@ -128,6 +128,11 @@ python scripts/eval_segmentation.py --checkpoint models/segmentation/best_unet.p
 
 Notebooks under `notebooks/` still run against the same `src/` modules. Prefer the scripts for a clean rerun.
 
+The main notebook uses the shared, label-independent patch generator and stores
+new crops in `data/processed/patches_resunet_label_independent/`. Existing saved
+metrics describe the original experiments; retraining with the corrected crops
+can produce different results.
+
 ## What is not in git
 
 - `data/raw` and `data/processed` (MRI and generated patches)

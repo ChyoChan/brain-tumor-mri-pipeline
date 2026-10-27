@@ -4,11 +4,10 @@ and post-segmentation ROI cropping.
 """
 
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import List, Optional, Tuple
 
 import cv2
 import numpy as np
-from PIL import Image
 from sklearn.model_selection import train_test_split
 import torch
 from torch.utils.data import Dataset
@@ -18,7 +17,6 @@ from albumentations.pytorch import ToTensorV2
 
 from src.constants import CLASS_NAMES, CLASS_TO_IDX, FOLDER_ALIASES, IMAGE_EXTS
 from src.roi import crop_tumor_region
-from src.utils import ensure_dir  # noqa: F401 – used downstream
 
 
 # ------------------------------------------------------------------ #
@@ -443,18 +441,6 @@ class SegmentationDataset(Dataset):
 # ------------------------------------------------------------------ #
 #  Classification patches from predicted tumor ROIs
 # ------------------------------------------------------------------ #
-
-def infer_patch_folder_name(model) -> str:
-    """Choose a processed-patch folder name from the segmentation model type."""
-    model_name = type(model).__name__.lower()
-    if "resunet" in model_name:
-        return "patches_resunet"
-    if "attention" in model_name:
-        return "patches_attention_unet"
-    if "unet" in model_name:
-        return "patches_unet"
-    return f"patches_{model_name}"
-
 
 def generate_classification_patches(
     samples: List[Tuple[str, int]],

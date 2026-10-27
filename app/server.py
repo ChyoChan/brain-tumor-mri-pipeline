@@ -37,12 +37,8 @@ class AnalyzeParams(BaseModel):
 
 
 @lru_cache(maxsize=1)
-def _runtime_singleton() -> PipelineRuntime:
-    return PipelineRuntime()
-
-
 def get_runtime() -> PipelineRuntime:
-    return _runtime_singleton()
+    return PipelineRuntime()
 
 
 RuntimeDep = Annotated[PipelineRuntime, Depends(get_runtime)]

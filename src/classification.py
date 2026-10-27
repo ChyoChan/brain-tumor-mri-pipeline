@@ -15,7 +15,7 @@ from PIL import Image
 from tqdm.auto import tqdm
 from sklearn.metrics import (
     accuracy_score, precision_score, recall_score, f1_score,
-    confusion_matrix, classification_report,
+    confusion_matrix,
 )
 
 from src.constants import CLASS_NAMES
