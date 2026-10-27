@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import hashlib
 import io
 import logging
 import threading
@@ -47,6 +48,11 @@ SEG_FALLBACKS = {
 CLS_DUAL = ROOT / "models" / "classification" / "best_resnet50_dual_input.pth"
 CLS_FULL = ROOT / "models" / "classification" / "pure_baseline" / "best_resnet50_pure_classification.pth"
 CLS_FULL_ALT = ROOT / "models" / "classification" / "pure_baseline" / "best_resnet50.pth"
+SAMPLE_ROOT = ROOT / "data" / "raw" / "Classification" / "Testing"
+SAMPLE_LABELS = {
+    "glioma": "Glioma", "meningioma": "Meningioma",
+    "pituitary": "Pituitary", "notumor": "No tumor",
+}
 
 SAMPLE_SPECS = [
     {
@@ -206,6 +212,58 @@ class PipelineRuntime:
         self._cls_cache: Dict[str, nn.Module] = {}
         self.input_size = int(self.cfg.get("classification", {}).get("input_size", 224))
         self.val_tf = get_val_transforms(self.input_size)
+        self._sample_index = self._discover_samples()
+
+    def _discover_samples(self) -> Dict[str, Dict[str, Any]]:
+        """Index local test images with opaque IDs, never client-supplied paths."""
+        root = SAMPLE_ROOT.resolve()
+        samples = {}
+        for class_name in CLASS_NAMES:
+            folder = root / class_name
+            if not folder.is_dir():
+                continue
+            for path in sorted(folder.rglob("*")):
+                if path.suffix.lower() not in {".png", ".jpg", ".jpeg", ".tif", ".tiff"}:
+                    continue
+                if not path.is_file() or not path.resolve().is_relative_to(root):
+                    continue
+                relative = path.relative_to(root).as_posix()
+                sample_id = "local_" + hashlib.sha256(relative.encode()).hexdigest()[:24]
+                samples[sample_id] = {
+                    "id": sample_id,
+                    "class_name": class_name,
+                    "label": SAMPLE_LABELS[class_name],
+                    "filename": path.name,
+                    "path": path,
+                }
+        return samples
+
+    def list_samples(
+        self, class_name: str | None = None, search: str = "",
+        page: int = 1, page_size: int = 8,
+    ) -> Dict[str, Any]:
+        """Return a bounded gallery page without exposing filesystem paths."""
+        if class_name is not None and class_name not in CLASS_NAMES:
+            raise ValueError("Unknown dataset class")
+        if page < 1 or not 1 <= page_size <= 24:
+            raise ValueError("Invalid gallery pagination")
+        query = search.strip().casefold()
+        items = [
+            item for item in self._sample_index.values()
+            if (class_name is None or item["class_name"] == class_name)
+            and query in item["filename"].casefold()
+        ]
+        total = len(items)
+        pages = (total + page_size - 1) // page_size
+        page = min(page, max(1, pages))
+        start = (page - 1) * page_size
+        return {
+            "items": [
+                {key: value for key, value in item.items() if key != "path"}
+                for item in items[start:start + page_size]
+            ],
+            "total": total, "page": page, "page_size": page_size, "pages": pages,
+        }
 
     def status(self) -> Dict[str, Any]:
         samples = []
@@ -235,6 +293,12 @@ class PipelineRuntime:
                 if not spec["path"].exists():
                     raise FileNotFoundError(f"Sample not found on disk: {spec['id']}")
                 return spec["path"]
+        item = self._sample_index.get(sample_id)
+        if item is not None:
+            path = item["path"].resolve()
+            if not path.is_relative_to(SAMPLE_ROOT.resolve()) or not path.is_file():
+                raise FileNotFoundError("Local sample is no longer available")
+            return path
         raise KeyError(f"Unknown sample id: {sample_id}")
 
     def _resolve_seg_path(self, name: str) -> Optional[Path]:
@@ -292,6 +356,7 @@ class PipelineRuntime:
         filename: str,
         seg_model_name: str = "resunet",
         classifier_mode: str = "dual",
+        generate_report: bool = True,
     ) -> Dict[str, Any]:
         gray = np.array(image.convert("L"))
         if gray.size == 0:
@@ -397,7 +462,7 @@ class PipelineRuntime:
                 heatmap if heatmap is not None else np.zeros(
                     (self.input_size, self.input_size), dtype=np.float32
                 ),
-            )
+            ) if generate_report else None
 
         tumor_px = int((mask > 0).sum())
         tumor_frac = float(tumor_px / mask.size) if mask.size else 0.0
@@ -435,6 +500,7 @@ class PipelineRuntime:
             "explanation_method": explanation_method,
             "score_type": "uncalibrated_softmax",
             "report": report,
+            "report_generated": report is not None,
             "notes": notes,
             "images": {
                 "original": _encode_image(gray),

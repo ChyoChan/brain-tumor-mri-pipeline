@@ -3,90 +3,127 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>MRI Pipeline Workstation</title>
-  <link rel="stylesheet" href="/static/styles.css?v=4" />
+  <meta name="theme-color" content="#e8eef6" />
+  <title>MRI reading room</title>
+  <link rel="stylesheet" href="/static/styles.css?v=6" />
 </head>
 <body>
-  <div class="shell">
-    <aside class="rail">
-      <div class="brand">
-        <div class="mark" aria-hidden="true"></div>
-        <div>
-          <p class="eyebrow">COMP4471</p>
-          <h1>MRI workstation</h1>
-        </div>
+  <svg class="icon-definitions" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <defs>
+      <symbol id="icon-upload" viewBox="0 0 24 24"><path d="M12 16V3m-5 5 5-5 5 5M4 15v5a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-5" /></symbol>
+      <symbol id="icon-play" viewBox="0 0 24 24"><path d="m9 5 10 7-10 7V5Z" /></symbol>
+      <symbol id="icon-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M15 9V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h4"/></symbol>
+      <symbol id="icon-expand" viewBox="0 0 24 24"><path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/></symbol>
+      <symbol id="icon-scan" viewBox="0 0 24 24"><path d="M7 3H3v4m14-4h4v4M3 17v4h4m14-4v4h-4M3 12h18"/></symbol>
+    </defs>
+  </svg>
+
+  <header class="app-header">
+    <a class="brand" href="/" aria-label="MRI reading room home">
+      <span class="brand-symbol" aria-hidden="true"><svg class="icon"><use href="#icon-scan" /></svg></span>
+      <span>MRI <span class="brand-light">reading room</span></span>
+    </a>
+    <div class="header-context"><span>Brain tumor analysis</span><span class="project-tag">COMP4471</span></div>
+    <div class="connection" id="connection"><span class="status-dot" aria-hidden="true"></span><span id="status-label" role="status">Connecting</span></div>
+  </header>
+
+  <div class="workspace">
+    <aside class="scan-tray" aria-labelledby="scan-title">
+      <div class="tray-heading"><h1 id="scan-title">Your scan</h1><span class="local-label">Local session</span></div>
+      <p class="tray-intro">Choose an MRI slice to explore its regions and model prediction.</p>
+
+      <div class="drop" id="dropzone">
+        <input id="file-input" type="file" accept="image/png,image/jpeg,image/tiff,.png,.jpg,.jpeg,.tif,.tiff" aria-label="Upload an MRI image" aria-describedby="upload-hint" />
+        <svg class="icon upload-icon" aria-hidden="true"><use href="#icon-upload" /></svg>
+        <strong>Upload MRI</strong>
+        <span id="upload-hint">Choose a file or drop it here</span>
+        <small>PNG, JPG or TIFF · up to 20 MB</small>
       </div>
-      <p class="lede">Upload a brain MRI slice. The local pipeline runs segmentation, ROI cropping, validated ResNet50 classification, spatial explanation, and a structured report.</p>
 
-      <label class="drop" id="dropzone">
-        <input id="file-input" type="file" accept="image/png,image/jpeg,image/jpg,image/tif,image/tiff,.png,.jpg,.jpeg,.tif" hidden />
-        <strong>Drop an MRI here</strong>
-        <span>or click to choose a file</span>
-        <em id="file-name">No file selected</em>
-      </label>
+      <section class="sample-section" aria-labelledby="sample-title">
+        <div class="section-heading"><h2 id="sample-title">Try a sample</h2><span>4 classes</span></div>
+        <div class="samples" id="samples"><p class="muted">Loading sample images…</p></div>
+        <button class="secondary-button browse-button" id="browse-samples" type="button">Browse local images</button>
+      </section>
 
-      <div class="samples" id="samples"></div>
-
-      <div class="controls">
-        <label>
-          Segmentation
+      <section class="model-section" aria-labelledby="model-title">
+        <h2 id="model-title">Analysis settings</h2>
+        <div class="controls">
+          <label for="seg-model">Find the region</label>
           <select id="seg-model">
             <option value="resunet" selected>ResUNet</option>
             <option value="unet">U-Net</option>
             <option value="attention_unet">Attention U-Net</option>
           </select>
-        </label>
-        <label>
-          Classifier
-          <select id="cls-mode">
-            <option value="full" selected>Full image (recommended)</option>
-            <option value="dual">Gated dual-input (experimental)</option>
+          <label for="cls-mode">Classify the scan</label>
+          <select id="cls-mode" aria-describedby="classifier-hint">
+            <option value="full" selected>Full image</option>
+            <option value="dual">Gated dual input</option>
           </select>
-        </label>
-        <button id="run-btn" type="button">Run pipeline</button>
-      </div>
+          <p class="control-hint" id="classifier-hint">Full image is the recommended baseline.</p>
+        </div>
+        <label class="report-option" for="generate-report"><input id="generate-report" type="checkbox" checked aria-describedby="report-option-hint" /><span>Generate report</span></label>
+        <p class="control-hint" id="report-option-hint">Optional template summary. Turn off to show model results only.</p>
+      </section>
 
-      <dl class="meta" id="health-meta">
-        <div><dt>Device</dt><dd id="device-label">…</dd></div>
-        <div><dt>Status</dt><dd id="status-label">checking checkpoints</dd></div>
-      </dl>
+      <div class="run-area">
+        <button class="primary-button" id="run-btn" type="button" disabled><svg class="icon" aria-hidden="true"><use href="#icon-play" /></svg><span id="run-label">Analyze scan</span></button>
+        <p class="run-hint" id="run-hint" role="status">Choose a scan to begin.</p>
+        <div class="busy" id="busy" hidden role="status"><span class="spinner" aria-hidden="true"></span><span>Analyzing your scan…</span></div>
+      </div>
+      <div class="device-info"><span class="device-mark" aria-hidden="true"></span><span>Processing on <strong id="device-label">your computer</strong></span></div>
     </aside>
 
-    <main class="stage">
-      <header class="stage-head">
-        <div>
-          <p class="eyebrow" id="result-kicker">Waiting</p>
-          <h2 id="result-title">Load a slice to begin</h2>
+    <main class="reading-surface" id="reading-surface">
+      <div class="reading-heading">
+        <div><h2>Scan viewer</h2><p id="result-kicker">No image selected</p></div>
+        <span class="scan-type">Single-slice MRI</span>
+      </div>
+      <p class="error" id="error-box" hidden role="alert"></p>
+
+      <section class="viewer" aria-label="MRI image viewer">
+        <div class="viewer-toolbar"><span id="active-view-title">Original scan</span><button class="viewer-expand" id="expand-btn" type="button" aria-label="Expand image viewer" aria-expanded="false"><svg class="icon" aria-hidden="true"><use href="#icon-expand" /></svg></button></div>
+        <div class="focus-frame" id="focus-frame">
+          <div class="viewer-empty"><svg class="icon" aria-hidden="true"><use href="#icon-scan" /></svg><h3>A closer look starts here.</h3><p>Upload your MRI or choose a sample.<br />Each view reveals a different part of the analysis.</p></div>
         </div>
-        <div class="badge" id="pred-badge" hidden></div>
-      </header>
-
-      <p class="error" id="error-box" hidden></p>
-
-      <section class="viewer" id="viewer">
-        <article class="pane"><h3>Original</h3><div class="frame empty" data-slot="original">MRI</div></article>
-        <article class="pane"><h3>Segmentation</h3><div class="frame empty" data-slot="segmentation">mask</div></article>
-        <article class="pane"><h3>ROI crop</h3><div class="frame empty" data-slot="crop">tumor crop</div></article>
-        <article class="pane"><h3 id="explanation-title">Grad-CAM</h3><div class="frame empty" data-slot="gradcam">attention</div></article>
+        <div class="viewer-caption"><span id="view-description">Your selected image will appear here.</span><span id="view-size"></span></div>
+        <div class="view-strip" id="view-strip" aria-label="Select an image view">
+          <button class="view-button active" type="button" data-view="original" aria-pressed="true"><span class="thumbnail empty" data-slot="original"><svg class="icon" aria-hidden="true"><use href="#icon-scan" /></svg></span><span class="view-name">Original</span><span class="view-hint">Input image</span></button>
+          <button class="view-button" type="button" data-view="segmentation" aria-pressed="false" disabled><span class="thumbnail empty" data-slot="segmentation"></span><span class="view-name">Segmentation</span><span class="view-hint">Predicted region</span></button>
+          <button class="view-button" type="button" data-view="crop" aria-pressed="false" disabled><span class="thumbnail empty" data-slot="crop"></span><span class="view-name">Region crop</span><span class="view-hint">A closer view</span></button>
+          <button class="view-button" type="button" data-view="gradcam" aria-pressed="false" disabled><span class="thumbnail empty" data-slot="gradcam"></span><span class="view-name">Attention</span><span class="view-hint">Model focus</span></button>
+        </div>
       </section>
-
-      <section class="findings" id="findings" hidden>
-        <div class="probs" id="probs"></div>
-        <article class="report">
-          <div class="report-head">
-            <h3>Structured report</h3>
-            <button id="copy-btn" type="button">Copy</button>
-          </div>
-          <pre id="report-text"></pre>
-          <p class="footnotes" id="footnotes"></p>
-        </article>
-      </section>
+      <div class="viewer-note"><span class="note-mark" aria-hidden="true">i</span><p>Read the image and prediction together. Attention shows model focus; it does not confirm a lesion.</p></div>
     </main>
+
+    <aside class="result-panel" aria-label="Analysis results">
+      <div class="result-heading"><h2>Analysis</h2><span class="result-state" id="result-state">Awaiting scan</span></div>
+      <div class="result-empty" id="result-empty">
+        <div class="empty-diagram" aria-hidden="true"><span></span><span></span><span></span></div>
+        <h3>From image to insight.</h3>
+        <p>Analyze a scan to see the predicted class, compare scores, and read the generated summary.</p>
+        <ol class="analysis-steps"><li><strong>Locate</strong><span>A segmentation model identifies a region.</span></li><li><strong>Classify</strong><span>ResNet50 compares four possible classes.</span></li><li><strong>Inspect</strong><span>Explore attention and the text summary.</span></li></ol>
+      </div>
+
+      <div class="findings" id="findings" hidden>
+        <section class="prediction" aria-label="Predicted class"><p class="prediction-label">Model prediction</p><h3 id="result-title"></h3><div class="prediction-score"><span id="model-score"></span><span>model score</span></div><div class="badge" id="pred-badge" hidden></div></section>
+        <section class="probs" id="probs" aria-label="Class scores"></section>
+        <article class="report" id="report-panel"><div class="report-head"><h3>Scan summary</h3><button class="text-button" id="copy-btn" type="button"><svg class="icon" aria-hidden="true"><use href="#icon-copy" /></svg><span id="copy-label">Copy</span></button></div><div id="report-text"></div></article>
+        <p class="report-skipped" id="report-skipped" hidden>Report generation was turned off for this analysis.</p>
+        <details class="model-details"><summary>Analysis details</summary><dl id="analysis-details"></dl><div id="analysis-notes"></div></details>
+      </div>
+      <p class="score-note">Research model output. Scores are uncalibrated. Optional summaries use predefined templates.</p>
+    </aside>
   </div>
-  <div class="busy" id="busy" hidden>
-    <div class="spinner"></div>
-    <p>Running segmentation → crop → classify → explain</p>
-  </div>
-  <script src="/static/app.js?v=4"></script>
+  <footer class="app-footer"><span>Brain tumor MRI pipeline</span><span>Images are processed locally.</span></footer>
+  <dialog id="sample-browser" class="sample-browser" aria-labelledby="browser-title" aria-describedby="browser-hint">
+    <div class="browser-heading"><div><h2 id="browser-title">Explore local images</h2><p id="browser-hint">Images from the local Testing folder. Labels come from dataset folders, not model predictions.</p></div><button class="secondary-button" id="close-browser" type="button" autofocus>Close</button></div>
+    <div class="browser-filters"><div><label for="sample-class">Dataset class</label><select id="sample-class"><option value="">All classes</option><option value="glioma">Glioma</option><option value="meningioma">Meningioma</option><option value="pituitary">Pituitary</option><option value="notumor">No tumor</option></select></div><div><label for="sample-search">Search filename</label><input id="sample-search" type="search" maxlength="120" placeholder="e.g. 0016" /></div></div>
+    <p class="browser-status" id="browser-status" role="status">Loading local images…</p>
+    <div class="samples browser-grid" id="browser-grid" aria-label="Local MRI images"></div>
+    <div class="browser-pagination"><button class="secondary-button" id="previous-samples" type="button" disabled>Previous</button><span id="sample-page"></span><button class="secondary-button" id="next-samples" type="button" disabled>Next</button></div>
+  </dialog>
+  <script src="/static/app.js?v=6"></script>
 </body>
 </html>

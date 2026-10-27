@@ -40,12 +40,61 @@ Put the Kaggle MRI dataset under `data/raw/` (classification images plus paired 
 
 A localhost workstation UI for single-slice inference:
 
+Quick start with the existing `rag` Conda environment:
+
+```bash
+./scripts/start_frontend.command
+```
+
+On macOS, double-click `scripts/start_frontend.command` in Finder to host the
+frontend locally, and `scripts/stop_frontend.command` to close the server.
+Keep the start terminal open while using the app. The stop launcher frees the
+port; it does not close browser tabs or delete project files.
+Both launchers locate the project automatically and work from any directory.
+It does not install dependencies; the selected environment must already have
+the packages from `requirements.txt`. To use a different Conda environment:
+
+```bash
+MRI_CONDA_ENV=myenv ./scripts/start_frontend.command
+```
+
+Or start with an already activated Python environment:
+
 ```bash
 pip install -r requirements.txt
 python scripts/run_frontend.py
 ```
 
-Open [http://127.0.0.1:8000](http://127.0.0.1:8000). Stop it with `python scripts/stop_frontend.py`. Keep trained weights under `models/` (gitignored). If `data/raw/Classification/Testing` is present, the UI also offers one sample per class.
+Open [http://127.0.0.1:8765](http://127.0.0.1:8765). Port 8000 is left available
+for other services. Stop with **Ctrl+C** in the server terminal, or run:
+
+```bash
+./scripts/stop_frontend.command
+```
+
+An activated Python environment can also run `python scripts/stop_frontend.py`.
+The stop script only signals this project's
+frontend on the selected port, and refuses to terminate unrelated services.
+For a custom port, use matching start/stop arguments:
+
+```bash
+./scripts/start_frontend.command --port 8766
+./scripts/stop_frontend.command --port 8766
+```
+
+Keep trained weights under `models/` (gitignored). If `data/raw/Classification/Testing` is present, the UI also offers one sample per class.
+
+Use **Browse local images** to select other images from that folder, filter by
+dataset class, search filenames, and page through results. Folder labels are
+dataset annotations, not predictions, and the Testing folder is not necessarily
+the same as the project's deterministic held-out evaluation split. Newly added
+local images appear after restarting the server. You can also upload any
+supported PNG, JPG, or TIFF image (up to 20 MB).
+
+Uncheck **Generate report** before analyzing to skip the template text summary.
+Segmentation, classification, and Grad-CAM still run normally. The API accepts
+`generate_report=false` in the analysis form and returns `report: null` and
+`report_generated: false`; existing callers that omit it still receive a report.
 
 The full-image classifier is the recommended default. The existing dual-input
 checkpoint used label-dependent preprocessing during training: no-tumor cases

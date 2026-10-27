@@ -8,7 +8,7 @@ from io import BytesIO
 from pathlib import Path
 from typing import Annotated, Literal
 
-from fastapi import Depends, FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, UploadFile
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -33,6 +33,7 @@ app.mount("/static", StaticFiles(directory=STATIC), name="static")
 class AnalyzeParams(BaseModel):
     seg_model: Literal["unet", "resunet", "attention_unet"] = "resunet"
     classifier_mode: Literal["dual", "full"] = "dual"
+    generate_report: bool = True
 
 
 @lru_cache(maxsize=1)
@@ -75,6 +76,17 @@ def health(runtime: RuntimeDep) -> JSONResponse:
         raise HTTPException(status_code=500, detail="Failed to read pipeline status") from exc
 
 
+@app.get("/api/samples")
+def list_samples(
+    runtime: RuntimeDep,
+    class_name: Literal["glioma", "meningioma", "pituitary", "notumor"] | None = None,
+    search: str = Query(default="", max_length=120),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=8, ge=1, le=24),
+) -> JSONResponse:
+    return JSONResponse(runtime.list_samples(class_name, search, page, page_size))
+
+
 @app.get("/api/samples/{sample_id}")
 def sample_image(sample_id: str, runtime: RuntimeDep) -> FileResponse:
     try:
@@ -93,11 +105,13 @@ async def analyze(
     sample_id: str | None = Form(default=None),
     seg_model: str = Form(default="resunet"),
     classifier_mode: str = Form(default="dual"),
+    generate_report: str = Form(default="true"),
 ) -> JSONResponse:
     try:
         params = AnalyzeParams(
             seg_model=seg_model.strip().lower(),  # type: ignore[arg-type]
             classifier_mode=classifier_mode.strip().lower(),  # type: ignore[arg-type]
+            generate_report=generate_report,
         )
     except ValidationError as exc:
         raise HTTPException(status_code=400, detail=exc.errors()) from exc
@@ -124,6 +138,7 @@ async def analyze(
             filename,
             params.seg_model,
             params.classifier_mode,
+            params.generate_report,
         )
     except HTTPException:
         raise

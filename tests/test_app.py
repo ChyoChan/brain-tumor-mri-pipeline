@@ -28,7 +28,7 @@ class FakeRuntime:
     def sample_path(self, sample_id: str):
         raise KeyError(sample_id)
 
-    def analyze(self, image, filename, seg_model_name, classifier_mode):
+    def analyze(self, image, filename, seg_model_name, classifier_mode, generate_report=True):
         return {
             "filename": filename,
             "prediction": "glioma",
@@ -45,7 +45,8 @@ class FakeRuntime:
             "mask_pixels": 12,
             "mask_fraction": 0.1,
             "stage_iou": 0.2,
-            "report": "Findings: test",
+            "report": "Findings: test" if generate_report else None,
+            "report_generated": generate_report,
             "notes": [],
             "images": {
                 "original": "YQ==",
