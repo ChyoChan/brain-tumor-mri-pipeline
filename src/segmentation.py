@@ -211,24 +211,6 @@ class ResUNet(nn.Module):
 #  Attention U-Net
 # ------------------------------------------------------------------ #
 
-class ConvBlock(nn.Module):
-    """Two 3x3 convs with batch-norm and ReLU."""
-
-    def __init__(self, in_ch: int, out_ch: int):
-        super().__init__()
-        self.block = nn.Sequential(
-            nn.Conv2d(in_ch, out_ch, kernel_size=3, padding=1, bias=False),
-            nn.BatchNorm2d(out_ch),
-            nn.ReLU(inplace=True),
-            nn.Conv2d(out_ch, out_ch, kernel_size=3, padding=1, bias=False),
-            nn.BatchNorm2d(out_ch),
-            nn.ReLU(inplace=True),
-        )
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return self.block(x)
-
-
 class AttentionGate(nn.Module):
     """Additive attention gate for skip connections."""
 
@@ -262,7 +244,7 @@ class AttentionUpBlock(nn.Module):
         super().__init__()
         self.up = nn.ConvTranspose2d(in_ch, out_ch, kernel_size=2, stride=2)
         self.att = AttentionGate(g_ch=out_ch, x_ch=skip_ch, inter_ch=max(out_ch // 2, 1))
-        self.conv = ConvBlock(out_ch + skip_ch, out_ch)
+        self.conv = DoubleConv(out_ch + skip_ch, out_ch)
 
     def forward(self, x: torch.Tensor, skip: torch.Tensor) -> torch.Tensor:
         x = self.up(x)
@@ -279,11 +261,11 @@ class AttentionUNet(nn.Module):
     def __init__(self, in_channels: int = 1, out_channels: int = 1, base_filters: int = 64):
         super().__init__()
         f = base_filters
-        self.enc1 = ConvBlock(in_channels, f)
-        self.enc2 = ConvBlock(f, f * 2)
-        self.enc3 = ConvBlock(f * 2, f * 4)
-        self.enc4 = ConvBlock(f * 4, f * 8)
-        self.bottleneck = ConvBlock(f * 8, f * 16)
+        self.enc1 = DoubleConv(in_channels, f)
+        self.enc2 = DoubleConv(f, f * 2)
+        self.enc3 = DoubleConv(f * 2, f * 4)
+        self.enc4 = DoubleConv(f * 4, f * 8)
+        self.bottleneck = DoubleConv(f * 8, f * 16)
         self.pool = nn.MaxPool2d(2)
         self.dec4 = AttentionUpBlock(f * 16, f * 8, f * 8)
         self.dec3 = AttentionUpBlock(f * 8, f * 4, f * 4)

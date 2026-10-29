@@ -56,11 +56,17 @@ def test_new_dual_contract_does_not_use_legacy_gate(monkeypatch, contract, first
     runtime._load_cls = lambda mode: Dual() if mode == "dual" else Full()
     monkeypatch.setattr(inference, "predict_mask", lambda *args: np.ones((8, 8), dtype=np.uint8))
     monkeypatch.setattr(inference, "crop_tumor_region", lambda *args, **kwargs: (np.full((8, 8), 150, dtype=np.uint8), None))
+
+    def unexpected_image_export(*args, **kwargs):
+        pytest.fail("Batch prediction must skip image rendering and encoding")
+
+    monkeypatch.setattr(inference, "_encode_image", unexpected_image_export)
+    monkeypatch.setattr(inference, "_overlay_mask", unexpected_image_export)
     result = runtime.predict(Image.new("RGB", (8, 8)), "unet", "dual")
     assert result["preprocessing_contract"] == contract
     assert result["crop_source"] == ("full_image_gate" if contract == "legacy_gate_v1" else "segmentation_roi")
     assert result["report"] is None
-    assert result["images"]["gradcam"] is None
+    assert result["images"] == dict.fromkeys(("original", "segmentation", "crop", "gradcam"))
 
 
 def test_runtime_applies_only_matching_validation_calibration(monkeypatch, tmp_path):

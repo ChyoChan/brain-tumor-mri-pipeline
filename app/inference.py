@@ -384,8 +384,11 @@ class PipelineRuntime:
         return model
 
     def predict(self, image: Image.Image, seg_model_name="resunet", classifier_mode="full") -> Dict[str, Any]:
-        """Use the deployed prediction path without report or attention generation."""
-        return self.analyze(image, "evaluation", seg_model_name, classifier_mode, False, explain=False)
+        """Use deployed inference without reports, attention, or preview exports."""
+        return self.analyze(
+            image, "evaluation", seg_model_name, classifier_mode, False,
+            explain=False, include_images=False,
+        )
 
     def analyze(
         self,
@@ -396,6 +399,7 @@ class PipelineRuntime:
         generate_report: bool = True,
         *,
         explain: bool = True,
+        include_images: bool = True,
     ) -> Dict[str, Any]:
         gray = np.array(image.convert("L"))
         if gray.size == 0:
@@ -581,9 +585,9 @@ class PipelineRuntime:
             "report_generated": report is not None,
             "notes": notes,
             "images": {
-                "original": _encode_image(gray),
-                "segmentation": _encode_image(_overlay_mask(gray, mask)),
-                "crop": _encode_image(crop),
-                "gradcam": _encode_image(gradcam_overlay) if gradcam_overlay is not None else None,
+                "original": _encode_image(gray) if include_images else None,
+                "segmentation": _encode_image(_overlay_mask(gray, mask)) if include_images else None,
+                "crop": _encode_image(crop) if include_images else None,
+                "gradcam": _encode_image(gradcam_overlay) if include_images and gradcam_overlay is not None else None,
             },
         }

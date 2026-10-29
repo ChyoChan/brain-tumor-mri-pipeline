@@ -176,6 +176,7 @@ def test_disabling_report_skips_generator_but_preserves_model_results(monkeypatc
     assert calls == {"segment": 1, "classify": 2 if classifier_mode == "dual" else 1, "attention": 1, "report": 0}
     assert without["report"] is None
     assert without["report_generated"] is False
+    assert all(without["images"].values())
     with_report = runtime.analyze(image, "scan.png", "unet", classifier_mode, True)
     assert calls["report"] == 1
     assert with_report["report"] == "Findings: template"

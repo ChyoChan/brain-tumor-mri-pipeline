@@ -157,6 +157,8 @@ same manifest for all comparisons and pass `--seg-model`/`--seg-checkpoint` matc
 the classifier's recorded training segmenter. Metrics include accuracy, macro
 F1, per-class recall, confusion matrix, end-to-end prediction time, ECE, and NLL.
 Per-image predictions and reliability CSV/PNG files are written beside the JSON.
+Batch prediction skips reports, Grad-CAM, and preview image encoding; its timing
+covers the segmentation, crop, and classification path.
 
 New training writes `best_resnet50_<mode>.pth` and a `.metadata.json` sidecar
 containing class order, preprocessing, split fingerprints and weight hashes. The

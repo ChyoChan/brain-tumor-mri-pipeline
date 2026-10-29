@@ -270,3 +270,23 @@ def _wrap_text(text: str, width: int = 60) -> str:
         )
         wrapped_lines.extend(wrapped if wrapped else [""])
     return "\n".join(wrapped_lines)
+
+
+def refine_panel_mask(mask: np.ndarray) -> np.ndarray:
+    """Refine a binary mask for display; leave inference measurements alone."""
+    mask_bin = (np.asarray(mask) > 0).astype(np.uint8)
+    if mask_bin.sum() == 0:
+        return mask_bin
+    try:
+        import cv2
+    except ImportError:
+        return mask_bin
+
+    mask_bin = cv2.morphologyEx(mask_bin, cv2.MORPH_CLOSE, np.ones((5, 5), np.uint8), iterations=1)
+    mask_bin = cv2.morphologyEx(mask_bin, cv2.MORPH_OPEN, np.ones((3, 3), np.uint8), iterations=1)
+    num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(mask_bin, connectivity=8)
+    if num_labels > 1:
+        largest_label = 1 + int(np.argmax(stats[1:, cv2.CC_STAT_AREA]))
+        mask_bin = (labels == largest_label).astype(np.uint8)
+    mask_bin = cv2.dilate(mask_bin, np.ones((3, 3), np.uint8), iterations=1)
+    return mask_bin.astype(np.uint8)

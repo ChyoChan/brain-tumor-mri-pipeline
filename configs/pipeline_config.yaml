@@ -25,13 +25,11 @@ segmentation:
   img_size: 256
   batch_size: 16
   learning_rate: 0.001
-  weight_decay: 0.00001
   epochs: 100
   patience: 15
   save_path: "models/segmentation/best_unet.pth"
 
 classification:
-  backbone: "resnet50"
   pretrained: true
   input_size: 224
   batch_size: 32
@@ -43,7 +41,6 @@ classification:
   augmentation:
     rotation_degrees: 15
     horizontal_flip: true
-    vertical_flip: false
     brightness: 0.2
     contrast: 0.2
   grid_search:
