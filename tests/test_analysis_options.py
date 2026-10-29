@@ -159,7 +159,7 @@ def test_disabling_report_skips_generator_but_preserves_model_results(monkeypatc
         calls["attention"] += 1
         return np.ones((8, 8), dtype=np.float32)
 
-    def report(*args):
+    def report(*args, **kwargs):
         calls["report"] += 1
         return "Findings: template"
 
@@ -167,6 +167,7 @@ def test_disabling_report_skips_generator_but_preserves_model_results(monkeypatc
     runtime._load_cls = lambda mode: TinyClassifier(6 if mode == "dual" else 3)
     runtime._resolve_seg_path = lambda name: Path("seg.pth")
     runtime._resolve_full_cls = lambda: Path("full.pth")
+    runtime._resolve_cls_path = lambda mode: Path(f"{mode}.pth")
     monkeypatch.setattr(inference, "predict_mask", mask)
     monkeypatch.setattr(inference, "generate_gradcam", attention)
     monkeypatch.setattr(inference, "generate_template_report", report)

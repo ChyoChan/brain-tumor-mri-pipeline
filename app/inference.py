@@ -6,6 +6,7 @@ import base64
 import hashlib
 import io
 import logging
+import os
 import threading
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
@@ -18,6 +19,8 @@ from PIL import Image
 
 from src.classification import build_resnet50, build_resnet50_dual_input, get_val_transforms
 from src.constants import CLASS_NAMES
+from src.checkpoints import classification_path, load_metadata, sha256_file
+from src.calibration import load_temperature_artifact, temperature_probabilities
 from src.explainability import (
     compute_stage_consistency_iou,
     generate_gradcam,
@@ -198,12 +201,18 @@ def _fallback_gradcam(
 
 
 class PipelineRuntime:
-    def __init__(self) -> None:
+    def __init__(self, *, classification_checkpoints=None, segmentation_checkpoints=None, calibration_path=None) -> None:
         self.cfg = load_config()
         self.device = get_device()
         self._lock = threading.Lock()
         self._seg_cache: Dict[str, nn.Module] = {}
         self._cls_cache: Dict[str, nn.Module] = {}
+        self._cls_metadata = {}
+        self.classification_checkpoints = classification_checkpoints or {}
+        self.segmentation_checkpoints = segmentation_checkpoints or {}
+        self.calibration_path = calibration_path if calibration_path is not None else os.environ.get("MRI_CALIBRATION")
+        self._calibration_cache = {}
+        self._seg_hashes = {}
         self.input_size = int(self.cfg.get("classification", {}).get("input_size", 224))
         self.val_tf = get_val_transforms(self.input_size)
         self._sample_index = self._discover_samples()
@@ -274,7 +283,9 @@ class PipelineRuntime:
                     for name in ("unet", "resunet", "attention_unet")
                 },
                 "classification": {
-                    "dual": CLS_DUAL.exists() and self._resolve_full_cls() is not None,
+                    "dual": self._resolve_cls_path("dual") is not None and (
+                        self._resolve_cls_path("dual") != CLS_DUAL or self._resolve_full_cls() is not None
+                    ),
                     "full": self._resolve_full_cls() is not None,
                 },
             },
@@ -296,6 +307,9 @@ class PipelineRuntime:
         raise KeyError(f"Unknown sample id: {sample_id}")
 
     def _resolve_seg_path(self, name: str) -> Optional[Path]:
+        override = getattr(self, "segmentation_checkpoints", {}).get(name)
+        if override is not None:
+            return Path(override) if Path(override).is_file() else None
         primary = SEG_CHECKPOINTS.get(name)
         if primary is not None and primary.exists():
             return primary
@@ -305,11 +319,30 @@ class PipelineRuntime:
         return None
 
     def _resolve_full_cls(self) -> Optional[Path]:
+        override = getattr(self, "classification_checkpoints", {}).get("full")
+        if override is not None:
+            return Path(override) if Path(override).is_file() else None
+        trained = classification_path(ROOT, "full")
+        if trained.is_file():
+            return trained
         if CLS_FULL.exists():
             return CLS_FULL
         if CLS_FULL_ALT.exists():
             return CLS_FULL_ALT
         return None
+
+    def _resolve_cls_path(self, mode: str) -> Optional[Path]:
+        if mode not in {"full", "dual", "cropped"}:
+            raise ValueError(f"Unknown classifier mode: {mode}")
+        if mode == "full":
+            return self._resolve_full_cls()
+        override = getattr(self, "classification_checkpoints", {}).get(mode)
+        if override is not None:
+            return Path(override) if Path(override).is_file() else None
+        trained = classification_path(ROOT, mode)
+        if trained.is_file():
+            return trained
+        return CLS_DUAL if mode == "dual" and CLS_DUAL.exists() else None
 
     def _load_seg(self, name: str) -> nn.Module:
         if name in self._seg_cache:
@@ -327,22 +360,32 @@ class PipelineRuntime:
         if mode in self._cls_cache:
             return self._cls_cache[mode]
         if mode == "dual":
-            if not CLS_DUAL.exists():
+            path = self._resolve_cls_path(mode)
+            if path is None:
                 raise FileNotFoundError("Dual-input checkpoint missing")
             model = build_resnet50_dual_input(len(CLASS_NAMES), pretrained=False)
-            path = CLS_DUAL
-        elif mode == "full":
-            path = self._resolve_full_cls()
+        elif mode in {"full", "cropped"}:
+            path = self._resolve_cls_path(mode)
             if path is None:
                 raise FileNotFoundError("Full-image ResNet50 checkpoint missing")
             model = build_resnet50(len(CLASS_NAMES), pretrained=False)
         else:
             raise ValueError(f"Unknown classifier mode: {mode}")
         model = model.to(self.device)
+        metadata = load_metadata(path, mode, required=path == classification_path(ROOT, mode))
+        if "input_size" in metadata and metadata["input_size"] != self.input_size:
+            raise ValueError("Checkpoint input size does not match the configured input size")
         _load_weights(model, path, self.device)
         model.eval()
         self._cls_cache[mode] = model
+        if not hasattr(self, "_cls_metadata"):
+            self._cls_metadata = {}
+        self._cls_metadata[mode] = metadata
         return model
+
+    def predict(self, image: Image.Image, seg_model_name="resunet", classifier_mode="full") -> Dict[str, Any]:
+        """Use the deployed prediction path without report or attention generation."""
+        return self.analyze(image, "evaluation", seg_model_name, classifier_mode, False, explain=False)
 
     def analyze(
         self,
@@ -351,6 +394,8 @@ class PipelineRuntime:
         seg_model_name: str = "resunet",
         classifier_mode: str = "dual",
         generate_report: bool = True,
+        *,
+        explain: bool = True,
     ) -> Dict[str, Any]:
         gray = np.array(image.convert("L"))
         if gray.size == 0:
@@ -360,7 +405,7 @@ class PipelineRuntime:
 
         if seg_model_name not in SEG_CHECKPOINTS:
             raise ValueError(f"Unknown segmentation model: {seg_model_name}")
-        if classifier_mode not in {"dual", "full"}:
+        if classifier_mode not in {"dual", "full", "cropped"}:
             raise ValueError(f"Unknown classifier mode: {classifier_mode}")
 
         notes = []
@@ -373,40 +418,77 @@ class PipelineRuntime:
             )
             orig_rgb = Image.fromarray(gray).convert("RGB")
             orig_tensor = self.val_tf(orig_rgb)
+            cls_model = self._load_cls(classifier_mode)
+            metadata = getattr(self, "_cls_metadata", {}).get(classifier_mode, {})
+            contract = metadata.get("crop_contract", "legacy_gate_v1" if classifier_mode == "dual" else "full_image")
+            expected_seg = metadata.get("segmentation")
+            if expected_seg:
+                seg_path = self._resolve_seg_path(seg_model_name)
+                hashes = getattr(self, "_seg_hashes", {})
+                if seg_path not in hashes:
+                    hashes[seg_path] = sha256_file(seg_path)
+                self._seg_hashes = hashes
+                if expected_seg["model"] != seg_model_name or expected_seg["sha256"] != hashes[seg_path]:
+                    raise ValueError("Select the segmentation checkpoint used to train this classifier")
 
             # The legacy dual checkpoint was trained with a full-size first view for
             # no-tumor images, but an ROI first view for tumor images. A full-image
             # classifier therefore acts as a deployable no-tumor gate before the
             # dual classifier is called. This reproduces the training contract
             # without using the unknown ground-truth label at inference time.
-            full_model = self._load_cls("full")
             orig_batch = orig_tensor.unsqueeze(0).to(self.device)
-            with torch.inference_mode():
-                full_logits = full_model(orig_batch)
-                full_probs = torch.softmax(full_logits, dim=1)[0]
-            gate_idx = int(full_probs.argmax())
-            gate_confidence = float(full_probs[gate_idx].detach().cpu())
-            if CLASS_NAMES[gate_idx] == "notumor" and bool(mask.any()):
+            full_model = None
+            gate_idx = gate_confidence = None
+            needs_gate = contract == "legacy_gate_v1"
+            if classifier_mode == "full" or needs_gate or (explain and self._resolve_full_cls() is not None):
+                full_model = cls_model if classifier_mode == "full" else self._load_cls("full")
+                with torch.inference_mode():
+                    full_logits = full_model(orig_batch)
+                    full_probs = torch.softmax(full_logits, dim=1)[0]
+                gate_idx = int(full_probs.argmax())
+                gate_confidence = float(full_probs[gate_idx].detach().cpu())
+            if gate_idx is not None and CLASS_NAMES[gate_idx] == "notumor" and bool(mask.any()):
                 notes.append(
                     "The segmenter is a tumor-localization model; its mask is not treated as lesion evidence when the full-image gate predicts no tumor."
                 )
 
-            if classifier_mode == "dual":
-                cls_model = self._load_cls("dual")
+            if classifier_mode in {"dual", "cropped"}:
                 crop_tensor = self.val_tf(Image.fromarray(crop).convert("RGB"))
-                batch, crop_source = _build_dual_batch(crop_tensor, orig_tensor, gate_idx)
+                if classifier_mode == "cropped":
+                    batch, crop_source = crop_tensor.unsqueeze(0), "segmentation_roi"
+                elif contract == "legacy_gate_v1":
+                    batch, crop_source = _build_dual_batch(crop_tensor, orig_tensor, gate_idx)
+                else:
+                    batch, crop_source = torch.cat([crop_tensor, orig_tensor], dim=0).unsqueeze(0), "segmentation_roi"
                 if crop_source == "full_image_gate":
                     crop = np.array(orig_rgb.resize((self.input_size, self.input_size)))
                 batch = batch.to(self.device)
-                notes.append(
-                    "Dual mode uses the full-image ResNet50 as a no-tumor gate to match its training input contract."
-                )
+                if contract == "legacy_gate_v1":
+                    notes.append("Legacy dual weights use the full-image no-tumor gate to match their training contract.")
                 with torch.inference_mode():
                     logits = cls_model(batch)
-                    probs = torch.softmax(logits, dim=1)[0].detach().cpu().numpy()
             else:
                 crop_source = "not_used"
-                probs = full_probs.detach().cpu().numpy()
+                logits = full_logits
+            raw_logits = logits[0].detach().cpu().numpy()
+            temperature = 1.0
+            calibration_path = getattr(self, "calibration_path", None)
+            if calibration_path:
+                if not metadata.get("split_fingerprint"):
+                    raise ValueError("Calibration requires checkpoint training split metadata")
+                cache = self._calibration_cache
+                key = (classifier_mode, seg_model_name)
+                if key not in cache:
+                    cache[key] = load_temperature_artifact(
+                        calibration_path, checkpoint_sha256=sha256_file(self._resolve_cls_path(classifier_mode)),
+                        mode=classifier_mode, segmentation_model=seg_model_name if classifier_mode != "full" else None,
+                        segmentation_sha256=sha256_file(self._resolve_seg_path(seg_model_name)) if classifier_mode != "full" else None,
+                        reference_full_sha256=sha256_file(self._resolve_full_cls()) if classifier_mode == "dual" and needs_gate else None,
+                        split_fingerprint=metadata.get("split_fingerprint"),
+                    )
+                temperature = cache[key]["temperature"]
+            probs = np.asarray(temperature_probabilities(raw_logits[None, :], temperature))[0]
+            score_type = "temperature_scaled_softmax" if calibration_path else "uncalibrated_softmax"
             pred_idx = int(probs.argmax())
             confidence = float(probs[pred_idx])
 
@@ -415,7 +497,7 @@ class PipelineRuntime:
             explanation_model = full_model
             explanation_batch = orig_batch
             explanation_method = (
-                "full-image reference Grad-CAM" if classifier_mode == "dual" else "Grad-CAM"
+                "full-image reference Grad-CAM" if classifier_mode != "full" else "Grad-CAM"
             )
             heatmap = None
             gradcam_overlay = None
@@ -427,7 +509,7 @@ class PipelineRuntime:
                         explanation_model.layer4,
                         self.device,
                         pred_class=pred_idx,
-                    )
+                    ) if explain and explanation_model is not None else None
                 except Exception as exc:
                     logger.info("pytorch-grad-cam failed (%s); using fallback", exc)
                     heatmap = _fallback_gradcam(
@@ -436,10 +518,13 @@ class PipelineRuntime:
                         explanation_model.layer4,
                         pred_idx,
                     )
-                gradcam_overlay = overlay_gradcam(gray, heatmap, alpha=0.45)
+                if heatmap is not None:
+                    gradcam_overlay = overlay_gradcam(gray, heatmap, alpha=0.45)
             except Exception as exc:
                 logger.warning("Grad-CAM unavailable: %s", exc)
                 notes.append(f"Grad-CAM unavailable ({exc.__class__.__name__}).")
+            if explain and explanation_model is None:
+                notes.append("Reference Grad-CAM unavailable: no full-image checkpoint installed.")
 
             stage_iou = None
             if heatmap is not None and CLASS_NAMES[pred_idx] != "notumor":
@@ -450,6 +535,8 @@ class PipelineRuntime:
                 heatmap if heatmap is not None else np.zeros(
                     (self.input_size, self.input_size), dtype=np.float32
                 ),
+                mask_fraction=float((mask > 0).mean()), explanation_method=explanation_method,
+                score_type=score_type,
             ) if generate_report else None
 
         tumor_px = int((mask > 0).sum())
@@ -458,6 +545,7 @@ class PipelineRuntime:
             "filename": filename,
             "prediction": CLASS_NAMES[pred_idx],
             "confidence": confidence,
+            "logits": raw_logits.tolist(),
             "probabilities": {
                 CLASS_NAMES[i]: float(probs[i]) for i in range(len(CLASS_NAMES))
             },
@@ -466,7 +554,7 @@ class PipelineRuntime:
             "classifier_gate": {
                 "prediction": CLASS_NAMES[gate_idx],
                 "score": gate_confidence,
-            },
+            } if needs_gate and gate_idx is not None else None,
             "model_details": {
                 "segmentation": {
                     "architecture": type(seg_model).__name__,
@@ -475,7 +563,7 @@ class PipelineRuntime:
                 "classification": {
                     "architecture": "ResNet50 dual-input" if classifier_mode == "dual" else "ResNet50",
                     "checkpoint": (
-                        CLS_DUAL.name if classifier_mode == "dual" else self._resolve_full_cls().name
+                        self._resolve_cls_path(classifier_mode).name
                     ),
                 },
             },
@@ -486,7 +574,9 @@ class PipelineRuntime:
             "stage_iou_label": "segmentation / full-image attention overlap",
             "crop_source": crop_source,
             "explanation_method": explanation_method,
-            "score_type": "uncalibrated_softmax",
+            "score_type": score_type,
+            "temperature": float(temperature),
+            "preprocessing_contract": contract,
             "report": report,
             "report_generated": report is not None,
             "notes": notes,

@@ -19,6 +19,7 @@ from sklearn.metrics import (
 )
 
 from src.constants import CLASS_NAMES
+from src.checkpoints import save_metadata
 from src.utils import AverageMeter, EarlyStopping, fmt_time
 
 
@@ -58,6 +59,7 @@ class BrainTumorDataset(Dataset):
         self,
         samples: List[Tuple[str, int]],
         transform: Optional[transforms.Compose] = None,
+        grayscale: bool = False,
     ):
         valid = [(p, l) for p, l in samples if Path(p).exists()]
         if len(valid) < len(samples):
@@ -68,6 +70,7 @@ class BrainTumorDataset(Dataset):
             )
         self.samples = valid
         self.transform = transform
+        self.grayscale = grayscale
 
     def __len__(self) -> int:
         return len(self.samples)
@@ -75,6 +78,8 @@ class BrainTumorDataset(Dataset):
     def __getitem__(self, idx: int):
         img_path, label = self.samples[idx]
         img = Image.open(img_path).convert("RGB")
+        if self.grayscale:
+            img = img.convert("L").convert("RGB")
         if self.transform:
             img = self.transform(img)
         return img, label
@@ -184,6 +189,7 @@ def train_classifier(
     epochs: int = 50,
     patience: int = 10,
     save_path: str = "models/classification/best_resnet50.pth",
+    checkpoint_metadata: Optional[dict] = None,
 ) -> Dict[str, list]:
     """Full training loop with early stopping. Returns history dict."""
     early_stop = EarlyStopping(patience=patience)
@@ -192,7 +198,7 @@ def train_classifier(
         "accuracy": [], "precision": [], "recall": [], "f1": [],
         "lr": [], "epoch_time": [],
     }
-    best_f1 = 0.0
+    best_f1 = -float("inf")
     train_start = time.time()
 
     print(f"{'='*70}")
@@ -240,6 +246,8 @@ def train_classifier(
             best_f1 = metrics["f1"]
             Path(save_path).parent.mkdir(parents=True, exist_ok=True)
             torch.save(model.state_dict(), save_path)
+            if checkpoint_metadata is not None:
+                save_metadata(save_path, checkpoint_metadata)
             print(f"  -> Best model saved (F1={best_f1:.4f})")
 
         if early_stop(val_loss):
@@ -312,7 +320,14 @@ def grid_search_hyperparams(
 
 def build_original_lookup(samples: List[Tuple[str, int]]) -> Dict[Tuple[int, str], str]:
     """Map (label, filename) -> original image path."""
-    return {(int(label), Path(path).name): str(path) for path, label in samples}
+    lookup = {}
+    for path, label in samples:
+        for name in (Path(path).name, Path(path).name + ".png"):
+            key = (int(label), name)
+            if key in lookup and lookup[key] != str(path):
+                raise ValueError(f"Ambiguous original image filename: {name}")
+            lookup[key] = str(path)
+    return lookup
 
 
 class DualInputBrainTumorDataset(Dataset):
@@ -324,12 +339,14 @@ class DualInputBrainTumorDataset(Dataset):
         original_lookup: Dict[Tuple[int, str], str],
         patch_transform: Optional[transforms.Compose] = None,
         original_transform: Optional[transforms.Compose] = None,
+        grayscale: bool = False,
     ):
         self.samples = [(str(path), int(label)) for path, label in patch_samples if Path(path).exists()]
         self.original_lookup = original_lookup
         self.patch_transform = patch_transform
         self.original_transform = original_transform if original_transform is not None else patch_transform
         self.to_tensor = transforms.ToTensor()
+        self.grayscale = grayscale
         dropped = len(patch_samples) - len(self.samples)
         if dropped > 0:
             import warnings
@@ -345,6 +362,9 @@ class DualInputBrainTumorDataset(Dataset):
         if not Path(original_path).exists():
             original_path = patch_path
         original_img = Image.open(original_path).convert("RGB")
+        if self.grayscale:
+            patch_img = patch_img.convert("L").convert("RGB")
+            original_img = original_img.convert("L").convert("RGB")
         patch_tensor = self.patch_transform(patch_img) if self.patch_transform else self.to_tensor(patch_img)
         original_tensor = (
             self.original_transform(original_img)

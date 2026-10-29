@@ -1,0 +1,14 @@
+{
+  "images": 7023,
+  "content_groups": 6597,
+  "duplicate_groups": 300,
+  "extra_duplicate_files": 426,
+  "dataset_fingerprint": "1c800080e0b1eb88fbe8c3d5195aa2f34858593fe8dcd13e1081b700a4a1060c",
+  "method": "SHA-256 of exact file bytes; case aliases counted once",
+  "patient_groups_supplied": false,
+  "limitations": [
+    "Re-encoded and near-duplicate images are not detected.",
+    "Patient isolation is not established without a complete patient-ID CSV.",
+    "This is a dataset audit, not a new model accuracy result."
+  ]
+}

@@ -3,8 +3,10 @@ Stage 0 – Data loading, splitting, pseudo-mask generation, segmentation datase
 and post-segmentation ROI cropping.
 """
 
+from __future__ import annotations
+
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import TYPE_CHECKING, List, Optional, Tuple
 
 import cv2
 import numpy as np
@@ -12,8 +14,8 @@ from sklearn.model_selection import train_test_split
 import torch
 from torch.utils.data import Dataset
 
-import albumentations as A
-from albumentations.pytorch import ToTensorV2
+if TYPE_CHECKING:
+    import albumentations as A
 
 from src.constants import CLASS_NAMES, CLASS_TO_IDX, FOLDER_ALIASES, IMAGE_EXTS
 from src.roi import crop_tumor_region
@@ -344,6 +346,9 @@ def generate_pseudo_masks_for_split(
 
 def get_seg_train_transforms(img_size: int = 256) -> A.Compose:
     """Strong augmentation pipeline for segmentation training."""
+    import albumentations as A
+    from albumentations.pytorch import ToTensorV2
+
     return A.Compose([
         A.Resize(img_size, img_size),
         A.HorizontalFlip(p=0.5),
@@ -361,16 +366,19 @@ def get_seg_train_transforms(img_size: int = 256) -> A.Compose:
         A.RandomBrightnessContrast(brightness_limit=0.2, contrast_limit=0.2, p=0.5),
         A.CLAHE(clip_limit=4.0, tile_grid_size=(8, 8), p=0.3),
         A.GaussNoise(p=0.2),
-        A.Normalize(mean=[0.5], std=[0.5]),
+        A.Normalize(mean=[0.0], std=[1.0]),  # Match predict_mask's image / 255 inputs.
         ToTensorV2(),
     ])
 
 
 def get_seg_val_transforms(img_size: int = 256) -> A.Compose:
     """Minimal transform pipeline for validation / test."""
+    import albumentations as A
+    from albumentations.pytorch import ToTensorV2
+
     return A.Compose([
         A.Resize(img_size, img_size),
-        A.Normalize(mean=[0.5], std=[0.5]),
+        A.Normalize(mean=[0.0], std=[1.0]),
         ToTensorV2(),
     ])
 
@@ -455,6 +463,7 @@ def generate_classification_patches(
     Every class follows the same deployable preprocessing contract: run the
     segmenter, crop a non-empty prediction, otherwise use the full image. This
     avoids leaking the ground-truth label into dual-classifier training.
+    Lossless PNG patches preserve the exact pixels used by in-memory inference.
     """
     from PIL import Image as PILImage
     from tqdm.auto import tqdm
@@ -482,7 +491,7 @@ def generate_classification_patches(
 
         save_dir = output_path / cls_name
         save_dir.mkdir(parents=True, exist_ok=True)
-        save_path = save_dir / Path(img_path).name
-        PILImage.fromarray(img_crop).save(str(save_path))
+        save_path = save_dir / f"{Path(img_path).name}.png"
+        PILImage.fromarray(img_crop).save(str(save_path), format="PNG")
         patched.append((str(save_path), label))
     return patched

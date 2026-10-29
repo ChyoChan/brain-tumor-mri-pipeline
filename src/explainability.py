@@ -113,38 +113,25 @@ def compute_stage_consistency_iou(
     intersection = np.logical_and(seg_bin, cam_bin).sum()
     union = np.logical_or(seg_bin, cam_bin).sum()
     if union == 0:
-        # Both are empty => spatially consistent "no lesion evidence".
+        # Both model outputs are empty; this does not establish clinical absence.
         return 1.0
     return float(intersection / union)
 
 
 def _build_stage_consistency_note(stage_iou: Optional[float], warning_threshold: float = 0.2) -> str:
     if stage_iou is None:
-        return "Stage consistency IoU: unavailable (no segmentation mask provided)."
+        return "Stage consistency IoU: unavailable."
     if stage_iou < warning_threshold:
         return (
             f"Stage consistency IoU: {stage_iou:.3f} "
-            "(warning: low overlap between segmentation and classifier attention)."
+            f"(below the configured overlap warning threshold of {warning_threshold:.3f})."
         )
-    return f"Stage consistency IoU: {stage_iou:.3f} (overlap within acceptable range)."
+    return f"Stage consistency IoU: {stage_iou:.3f} (model-output overlap, not segmentation accuracy)."
 
 
 # ------------------------------------------------------------------ #
 # Helper functions
 # ------------------------------------------------------------------ #
-def _get_confidence_level(confidence: float) -> str:
-    """Convert numerical confidence to qualitative description."""
-    if confidence >= 0.9:
-        return "very high"
-    if confidence >= 0.75:
-        return "high"
-    if confidence >= 0.6:
-        return "moderate"
-    if confidence >= 0.4:
-        return "low"
-    return "very low"
-
-
 def _sanitize_generation_text(text: str) -> str:
     """Remove common tokenizer artifacts from generated text."""
     cleaned = (text or "")
@@ -250,108 +237,29 @@ def summarize_report_text(
     segmentation_mask: Optional[np.ndarray] = None,
     true_label: Optional[object] = None,
 ) -> str:
-    """Convert a full VLM report into a detailed multi-paragraph explanatory summary."""
+    """Summarize supplied text and model measurements without adding findings."""
     cleaned = _sanitize_generation_text(report_text or "")
     if not cleaned:
         return "Summary unavailable."
 
     stage_iou = _extract_stage_iou_value(cleaned)
-    # Remove diagnostics block when present to keep summary clinically focused.
     core_report = cleaned.split("Model diagnostics:")[0].strip()
-    sections = _extract_structured_sections(core_report)
     class_name = _resolve_class_name(predicted_class)
     true_class_name = _resolve_class_name(true_label)
-    class_phrase = f"{class_name}" if class_name else "the predicted class"
-
-    seg_empty_note = ""
+    details = []
+    if class_name:
+        details.append(f"Classifier prediction: {class_name}.")
+    if confidence is not None:
+        details.append(f"Uncalibrated model score: {confidence:.1%}; this is not a calibrated probability.")
     if segmentation_mask is not None:
-        seg_nonzero = int(np.count_nonzero(np.asarray(segmentation_mask)))
-        seg_is_empty = seg_nonzero == 0
-        if class_name and class_name != "notumor" and seg_is_empty:
-            seg_empty_note = (
-                "The segmentation mask is empty despite a tumor-class prediction. "
-                "This usually indicates stage-1 under-segmentation, threshold miss, or weak lesion contrast."
-            )
-        elif class_name == "notumor" and not seg_is_empty:
-            seg_empty_note = (
-                "Segmentation still shows foreground activity despite a no-tumor class prediction; "
-                "this may reflect non-tumor structures or stage disagreement."
-            )
-
-    class_disagreement_note = ""
-    if true_class_name and class_name and true_class_name != class_name:
-        class_disagreement_note = (
-            f"Class comparison: prediction is {class_name} while dataset label is {true_class_name}, "
-            "so this sample is a classification mismatch."
-        )
-
-    if sections is not None:
-        findings, impression, recommendation = sections
-        findings_short = _first_n_sentences(findings, n=3)
-        impression_short = _first_n_sentences(impression, n=2)
-        recommendation_short = _first_n_sentences(recommendation, n=2)
-
-        paragraph_1 = (
-            f"The model prediction is most consistent with {class_phrase}. "
-            f"{findings_short}"
-        )
-        paragraph_diag = f"Diagnostic interpretation: {impression_short}"
-
-        if confidence is not None:
-            conf_value = float(np.clip(confidence, 0.0, 1.0))
-            confidence_sentence = (
-                f"Classifier confidence is {conf_value:.1%}, which indicates "
-                f"{_get_confidence_level(conf_value)} certainty for this sample."
-            )
-        else:
-            confidence_sentence = "Classifier confidence is available in the panel header for this sample."
-
-        if stage_iou is not None:
-            if stage_iou < 0.2:
-                stage_sentence = (
-                    f"Stage-consistency IoU is {stage_iou:.3f}, showing weak overlap between "
-                    "segmentation and Grad-CAM focus. This can happen when classifier attention includes "
-                    "peritumoral edema/context while the segmentation mask captures mainly the tumor core, "
-                    "or when segmentation under-covers irregular boundaries."
-                )
-            else:
-                stage_sentence = (
-                    f"Stage-consistency IoU is {stage_iou:.3f}, indicating reasonable spatial agreement "
-                    "between segmentation and classifier attention."
-                )
-        else:
-            stage_sentence = "Stage-consistency IoU is unavailable for this sample."
-        reliability_parts = [confidence_sentence, stage_sentence]
-        if seg_empty_note:
-            reliability_parts.append(seg_empty_note)
-        if class_disagreement_note:
-            reliability_parts.append(class_disagreement_note)
-        paragraph_reliability = " ".join(part.strip() for part in reliability_parts if part).strip()
-
-        paragraph_3 = f"Recommended follow-up: {recommendation_short}"
-        paragraph_4 = (
-            "Clinical note: this panel is an AI-assisted visualization and should be interpreted "
-            "together with full-sequence MRI review and clinical context."
-        )
-        return (
-            f"{paragraph_1}\n\n"
-            f"{paragraph_diag}\n\n"
-            f"{paragraph_reliability}\n\n"
-            f"{paragraph_3}\n\n"
-            f"{paragraph_4}"
-        )
-
-    fallback = _first_n_sentences(core_report, n=10)
-    if len(fallback) > 1200:
-        fallback = f"{fallback[:1197].rstrip()}..."
-    chunks = re.split(r"(?<=[.!?])\s+", fallback)
-    if len(chunks) >= 8:
-        para_1 = " ".join(chunks[:3]).strip()
-        para_2 = " ".join(chunks[3:5]).strip()
-        para_3 = " ".join(chunks[5:7]).strip()
-        para_4 = " ".join(chunks[7:]).strip()
-        return f"{para_1}\n\n{para_2}\n\n{para_3}\n\n{para_4}".strip()
-    return fallback
+        mask = np.asarray(segmentation_mask)
+        details.append(f"Segmentation foreground pixels: {np.count_nonzero(mask)} of {mask.size}.")
+    if stage_iou is not None:
+        details.append(_build_stage_consistency_note(stage_iou))
+    if true_class_name and class_name:
+        details.append(f"Dataset class: {true_class_name}; classifier prediction: {class_name}.")
+    summary = core_report if core_report.startswith("Prediction:") else _first_n_sentences(core_report, n=10)
+    return "\n\n".join([summary, " ".join(details)]).strip()
 
 
 def _report_is_consistent_with_prediction(findings: str, impression: str, class_name: str) -> bool:
@@ -368,31 +276,38 @@ def _report_is_consistent_with_prediction(findings: str, impression: str, class_
     return True
 
 
-def _build_aligned_template_report(class_name: str, confidence: float, focus_region: str) -> str:
-    """Deterministic class-conditioned report used as safe fallback."""
-    confidence_level = _get_confidence_level(confidence)
-
-    if class_name == "notumor":
-        findings = (
-            "No suspicious intracranial mass is identified on this exam. "
-            f"Grad-CAM attention is centered on {focus_region}, but no focal tumor-like lesion is supported by the classifier."
-        )
-        impression = f"No evidence of a brain tumor; overall confidence is {confidence:.1%} ({confidence_level})."
-        recommendation = "Routine clinical correlation is advised if symptoms persist or evolve."
-    else:
-        findings = (
-            f"There is a lesion most consistent with {class_name} involving {focus_region}. "
-            "The appearance is compatible with a focal intracranial mass on MRI, and the attention map highlights the same region."
-        )
-        impression = (
-            f"Impression is most consistent with {class_name}, with model confidence {confidence:.1%} ({confidence_level})."
-        )
-        recommendation = (
-            "Recommend correlation with the full MRI sequence set and "
-            "neurosurgical/oncologic evaluation as clinically indicated."
-        )
-
-    return _format_structured_report(findings, impression, recommendation)
+def _build_aligned_template_report(
+    class_name: str, confidence: float, focus_region: str, *,
+    mask_fraction: Optional[float] = None,
+    explanation_method: str = "Grad-CAM",
+    score_type: str = "uncalibrated_softmax",
+) -> str:
+    """Describe model outputs without deriving clinical findings from a label."""
+    if class_name not in CLASS_NAMES:
+        raise ValueError(f"Unknown predicted class: {class_name}")
+    if not np.isfinite(confidence) or not 0 <= confidence <= 1:
+        raise ValueError("Model score must be finite and between 0 and 1")
+    coverage = "Not provided."
+    if mask_fraction is not None:
+        if not np.isfinite(mask_fraction) or not 0 <= mask_fraction <= 1:
+            raise ValueError("Mask fraction must be finite and between 0 and 1")
+        coverage = f"{mask_fraction:.2%} of image pixels were marked by the segmenter; this is not a tumor volume."
+    score = (
+        f"{confidence:.1%} (uncalibrated softmax score). This is not a calibrated probability of disease."
+        if score_type == "uncalibrated_softmax"
+        else f"{confidence:.1%} (score type: {score_type}). Calibration is not established by this report."
+    )
+    explanation = f"{explanation_method} describes classifier attention. Spatial focus: {focus_region}."
+    if explanation_method == "full-image reference Grad-CAM":
+        explanation += " This attention is from the full-image reference classifier and does not directly explain the selected crop-based classifier."
+    return (
+        f"Prediction:\nClassifier predicted class: {class_name}.\n\n"
+        f"Model score:\n{score}\n\n"
+        f"Segmentation coverage:\n{coverage}\n\n"
+        f"Explanation:\n{explanation}\n\n"
+        "Limitations:\nAttention does not confirm a tumor. Model outputs do not establish a diagnosis, "
+        "and image coordinates do not identify anatomical structures."
+    )
 
 
 def _is_medgemma_model_name(model_name: str) -> bool:
@@ -403,160 +318,44 @@ def _describe_focus_region(
     heatmap: np.ndarray,
     class_name: Optional[str] = None,
 ) -> str:
-    """Extract anatomically meaningful focus region from Grad-CAM heatmap."""
+    """Describe image coordinates; class_name is retained for notebook callers."""
     if heatmap is None or getattr(heatmap, "size", 0) == 0:
-        return "the lesion region"
+        return "unavailable (no spatial attention map)"
 
     arr = np.asarray(heatmap, dtype=np.float32).squeeze()
     if arr.ndim != 2 or arr.size == 0:
-        return "the lesion region"
-
-    if float(arr.max()) > 1.0:
-        arr = arr / (float(arr.max()) + 1e-8)
+        return "unavailable (no spatial attention map)"
+    arr = _normalize_heatmap(arr)
+    if not arr.any():
+        return "unavailable (no varying attention signal)"
 
     h, w = arr.shape
     mask = arr >= 0.5
-    if mask.sum() < 10:
-        flat = arr.reshape(-1)
-        if flat.size == 0:
-            return "the lesion region"
-        topk = max(25, int(0.02 * flat.size))
-        idx = np.argpartition(flat, -topk)[-topk:]
-        ys, xs = np.unravel_index(idx, arr.shape)
-        weights = flat[idx]
-    else:
-        ys, xs = np.where(mask)
-        weights = arr[ys, xs]
-
-    if ys.size == 0:
-        return "the lesion region"
-    if float(np.sum(weights)) <= 1e-8:
-        return "the lesion region"
+    ys, xs = np.where(mask)
+    weights = arr[ys, xs]
 
     cy = float(np.average(ys / max(h - 1, 1), weights=weights))
     cx = float(np.average(xs / max(w - 1, 1), weights=weights))
 
-    left = cx < 0.4
-    right = cx > 0.6
-    superior = cy < 0.35
-    inferior = cy > 0.7
-    parasagittal = abs(cx - 0.5) < 0.12 and not (left or right)
-    central = 0.35 <= cx <= 0.65 and 0.25 <= cy <= 0.75
-
-    if class_name == "pituitary" or cy > 0.72:
-        return "the sellar/suprasellar region"
-
-    if class_name == "meningioma":
-        if parasagittal:
-            side = "right" if cx > 0.5 else "left"
-            return f"the {side} parasagittal dural-based region"
-        if superior and left:
-            return "the left frontoparietal convexity"
-        if superior and right:
-            return "the right frontoparietal convexity"
-        if inferior and left:
-            return "the left temporal convexity"
-        if inferior and right:
-            return "the right temporal convexity"
-        if abs(cy - 0.5) < 0.15:
-            return "the falcine/parasagittal region"
-        return f"the {'left' if left else 'right'} convexity dural-based region"
-
-    if class_name == "glioma":
-        if superior and left:
-            return "the left frontal lobe infiltrative mass"
-        if superior and right:
-            return "the right frontal lobe infiltrative mass"
-        if not superior and left:
-            return "the left temporal lobe infiltrative mass"
-        if not superior and right:
-            return "the right temporal lobe infiltrative mass"
-        if central:
-            return "the deep white matter/periventricular region"
-        lobe = "frontal" if superior else "temporal"
-        return f"the {'left' if left else 'right'} {lobe} lobe infiltrative mass"
-
-    if central:
-        return "the central brain parenchyma"
-    if left and superior:
-        return "the left frontoparietal region"
-    if right and superior:
-        return "the right frontoparietal region"
-    if left and inferior:
-        return "the left temporo-occipital region"
-    if right and inferior:
-        return "the right temporo-occipital region"
-    return "the brain parenchyma"
+    return f"image coordinates x={cx:.1%}, y={cy:.1%} measured from the top-left corner"
 
 
 def generate_template_report(
     predicted_class: int,
     confidence: float,
-    heatmap: np.ndarray,
+    heatmap: Optional[np.ndarray],
+    *,
+    mask_fraction: Optional[float] = None,
+    explanation_method: str = "Grad-CAM",
+    score_type: str = "uncalibrated_softmax",
 ) -> str:
-    """Deterministic report template tightly conditioned on the classifier output."""
-    class_name = CLASS_NAMES[predicted_class] if 0 <= predicted_class < len(CLASS_NAMES) else "notumor"
-    focus_region = _describe_focus_region(heatmap, class_name)
-    confidence_level = _get_confidence_level(confidence)
-
-    if class_name == "notumor":
-        findings = (
-            f"Findings: No suspicious intracranial mass, focal enhancing lesion, mass effect, or obvious tumor-related abnormality is identified. "
-            f"The attention map is centered on {focus_region}, but there is no convincing imaging evidence of neoplasm. "
-            f"The overall appearance is therefore most consistent with a normal or non-neoplastic study."
-        )
-        impression = (
-            f"Impression: No radiologically evident brain tumor. The uncalibrated model score is {confidence_level} ({confidence:.1%}). "
-            f"There is no class-specific imaging evidence to support a tumor diagnosis on the current exam."
-        )
-        recommendation = (
-            "Recommendation: Correlate with the complete MRI sequence set and clinical history. "
-            "If symptoms persist, consider follow-up imaging or specialist review to exclude subtle disease."
-        )
-    elif class_name == "glioma":
-        findings = (
-            f"Findings: An infiltrative intra-axial mass is demonstrated in {focus_region}. "
-            "The lesion has an aggressive parenchymal pattern rather than a dural-based configuration, which is most compatible with glioma. "
-            "The Grad-CAM attention map highlights the same region, supporting the classifier's localization."
-        )
-        impression = (
-            f"Impression: Imaging features are most suggestive of glioma with a {confidence_level} uncalibrated model score ({confidence:.1%}). "
-            "The lesion appears intra-axial and infiltrative, making glioma the leading consideration."
-        )
-        recommendation = (
-            "Recommendation: Correlate with contrast-enhanced MRI, advanced sequences if available, and neurosurgical evaluation. "
-            "Histopathologic confirmation should be considered when clinically appropriate."
-        )
-    elif class_name == "meningioma":
-        findings = (
-            f"Findings: There is an extra-axial, dural-based mass centered in {focus_region}. "
-            "The lesion location and morphology favor a meningioma pattern, with the attention map emphasizing the same peripheral/dural region. "
-            "A broad-based interface with the adjacent dura is implied by the classifier's localization."
-        )
-        impression = (
-            f"Impression: Imaging appearance favors meningioma with a {confidence_level} uncalibrated model score ({confidence:.1%}). "
-            "The lesion is best characterized as an extra-axial dural-based tumor on the current exam."
-        )
-        recommendation = (
-            "Recommendation: Correlate with contrast-enhanced MRI and neurosurgical consultation. "
-            "Consider evaluation for mass effect, edema, or venous sinus involvement if clinically relevant."
-        )
-    else:  # pituitary
-        findings = (
-            f"Findings: A sellar/suprasellar mass is centered in {focus_region}. "
-            "The location is typical for a pituitary-origin lesion, and the attention map is concentrated at the skull-base midline region. "
-            "The appearance is therefore most compatible with a pituitary adenoma-type process."
-        )
-        impression = (
-            f"Impression: Imaging features are most suggestive of pituitary tumor with a {confidence_level} uncalibrated model score ({confidence:.1%}). "
-            "The lesion localizes to the sellar/suprasellar compartment."
-        )
-        recommendation = (
-            "Recommendation: Correlate with pituitary-protocol MRI and endocrinologic evaluation. "
-            "Assessment for hormonal dysfunction and optic chiasm involvement may be warranted."
-        )
-
-    return f"{findings}\n{impression}\n{recommendation}"
+    """Report model measurements while keeping the legacy three-argument call."""
+    if not 0 <= predicted_class < len(CLASS_NAMES):
+        raise ValueError(f"Unknown predicted class index: {predicted_class}")
+    return _build_aligned_template_report(
+        CLASS_NAMES[predicted_class], confidence, _describe_focus_region(heatmap),
+        mask_fraction=mask_fraction, explanation_method=explanation_method, score_type=score_type,
+    )
 
 
 # ------------------------------------------------------------------ #
@@ -659,51 +458,27 @@ class CLIPReportGenerator:
 
     def _build_strong_prompt(self, predicted_class: int, confidence: float, focus_region: str) -> str:
         class_name = CLASS_NAMES[predicted_class]
-        confidence_level = _get_confidence_level(confidence)
-        return f"""You are an experienced neuroradiologist writing a concise, professional, and clinically accurate brain MRI report.
-You MUST output ONLY the following three sections in exact format. Do not add any extra text, citations, URLs, lists, or explanations.
+        return f"""Summarize only the recorded outputs of an experimental MRI classification pipeline.
+Do not infer anatomy, tissue morphology, malignancy, disease absence, or clinical findings from a class score or attention map.
+Image coordinates describe positions in the displayed image; they do not identify anatomical structures.
+Do not provide treatment or follow-up advice.
 
+Output exactly these three sections:
 Findings:
-[Write 2-4 sentences describing the key MRI findings, location, and morphology using standard radiology language.]
-
+[State the classifier prediction and the image-coordinate attention information.]
 Impression:
-[One clear sentence with the most likely diagnosis and confidence level.]
-
+[Quote the uncalibrated softmax score and explain that it is not a calibrated disease probability.]
 Recommendation:
-[One sentence clinical recommendation.]
+[State that these model outputs do not establish clinical findings.]
 
-Predicted tumor type: {class_name.upper()}
-Model confidence: {confidence:.1%} ({confidence_level})
-Grad-CAM attention focused on: {focus_region}
-
-If the prediction is "notumor", clearly state that no suspicious intracranial mass or abnormality is identified.
-
-Findings:"""
+Recorded model outputs:
+- Classifier prediction: {class_name}
+- Uncalibrated softmax score: {confidence:.1%}
+- Classifier attention focus: {focus_region}
+"""
 
     def _build_medgemma_instruction(self, predicted_class: int, confidence: float, focus_region: str) -> str:
-        class_name = CLASS_NAMES[predicted_class]
-        confidence_level = _get_confidence_level(confidence)
-        return f"""You are an experienced neuroradiologist.
-
-Generate a concise brain MRI report. Output EXACTLY these sections and nothing else:
-Findings:
-Impression:
-Recommendation:
-
-Constraints:
-- Findings: 2-4 sentences.
-- Impression: exactly 1 sentence.
-- Recommendation: exactly 1 sentence.
-- Use professional radiology language.
-- Do not include bullet points, disclaimers, or markdown.
-
-Model evidence to ground your report:
-- Predicted tumor type: {class_name.upper()}
-- Model confidence: {confidence:.1%} ({confidence_level})
-- Grad-CAM focus region: {focus_region}
-
-If predicted class is NOTUMOR, explicitly state no suspicious intracranial mass is identified.
-"""
+        return self._build_strong_prompt(predicted_class, confidence, focus_region)
 
     def _generate_text_with_causal_lm(self, prompt: str) -> str:
         tokenizer = self._tokenizer
@@ -870,7 +645,9 @@ If predicted class is NOTUMOR, explicitly state no suspicious intracranial mass 
         if heatmap is None:
             heatmap = np.zeros((224, 224), dtype=np.float32)
 
-        safe_class = predicted_class if 0 <= predicted_class < len(CLASS_NAMES) else len(CLASS_NAMES) - 1
+        if not 0 <= predicted_class < len(CLASS_NAMES):
+            raise ValueError(f"Unknown predicted class index: {predicted_class}")
+        safe_class = predicted_class
         class_name = CLASS_NAMES[safe_class]
         focus_region = _describe_focus_region(heatmap, class_name)
         report = self._generate_structured_report(
@@ -882,7 +659,13 @@ If predicted class is NOTUMOR, explicitly state no suspicious intracranial mass 
         )
         report_source = "generated"
         if report is None:
-            report = _build_aligned_template_report(class_name, confidence, focus_region)
+            mask_fraction = None
+            if segmentation_mask is not None and np.asarray(segmentation_mask).size:
+                mask = np.asarray(segmentation_mask)
+                mask_fraction = float(np.count_nonzero(mask) / mask.size)
+            report = _build_aligned_template_report(
+                class_name, confidence, focus_region, mask_fraction=mask_fraction,
+            )
             report_source = "template_fallback"
         self.last_report_source = report_source
 
@@ -910,7 +693,7 @@ If predicted class is NOTUMOR, explicitly state no suspicious intracranial mass 
 
         iou_msg = "N/A" if computed_stage_iou is None else f"{computed_stage_iou:.3f}"
         print(
-            f"Aligned medical report generated successfully "
+            f"Model-output report generated successfully "
             f"({class_name}, {confidence:.1%}, source={report_source}, stage_iou={iou_msg})"
         )
         return report

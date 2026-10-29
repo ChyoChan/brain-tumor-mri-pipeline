@@ -28,12 +28,19 @@ data/ and models/        local only, not committed
 ## Setup
 
 ```bash
-python -m venv .venv
+python3.11 -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
+python -m pip install -r requirements-runtime.txt
 ```
 
 Put the Kaggle MRI dataset under `data/raw/` (classification images plus paired segmentation masks). Trained weights go under `models/`.
+
+Use `requirements-training.txt` for training/evaluation and `requirements-dev.txt`
+for tests. `requirements.txt` includes all groups. Direct dependency versions are
+pinned, including the correct `grad-cam` package name. See [setup and checkpoint
+instructions](docs/setup.md) for environment details, CPU/CUDA notes, and
+checksum-verified weights. Original weight download URLs are not yet published;
+obtain them from the owner or train models before running inference.
 
 
 ## Local frontend
@@ -61,7 +68,7 @@ MRI_CONDA_ENV=myenv ./scripts/start_frontend.command
 Or start with an already activated Python environment:
 
 ```bash
-pip install -r requirements.txt
+python -m pip install -r requirements-runtime.txt
 python scripts/run_frontend.py
 ```
 
@@ -122,16 +129,74 @@ From the project root:
 python scripts/train_segmentation.py --model unet
 python scripts/train_segmentation.py --model resunet
 python scripts/train_segmentation.py --model attention_unet
-python scripts/train_classification.py --mode dual
+python scripts/train_classification.py --mode dual --manifest data/processed/classification_split_v1.json --seg-checkpoint models/segmentation/best_unet_real_mask.pth
 python scripts/eval_segmentation.py --checkpoint models/segmentation/best_unet.pth
 ```
 
 Notebooks under `notebooks/` still run against the same `src/` modules. Prefer the scripts for a clean rerun.
 
+## Frozen classification evaluation and calibration
+
+Create a split once before training. This groups byte-identical files together;
+it checks for conflicting duplicate labels and detects later dataset changes:
+
+```bash
+python scripts/prepare_classification_split.py --data-dir data/raw --output data/processed/classification_split_v1.json
+python scripts/train_classification.py --mode full --manifest data/processed/classification_split_v1.json
+python scripts/eval_classification.py --manifest data/processed/classification_split_v1.json --mode full --output outputs/metrics/full_evaluation.json
+```
+
+Add `--groups-csv patients.csv` when creating the split to keep patients together.
+The CSV needs `path,patient_id` columns, paths relative to `--data-dir`, and a row
+for every image. Without it, the audit guarantees exact-file duplicate grouping,
+not patient isolation or detection of re-encoded/augmented copies. Existing split
+files are never overwritten. New splits can change the old reported scores.
+
+Evaluation supports `--mode full`, `--mode cropped`, and `--mode dual`. Use the
+same manifest for all comparisons and pass `--seg-model`/`--seg-checkpoint` matching
+the classifier's recorded training segmenter. Metrics include accuracy, macro
+F1, per-class recall, confusion matrix, end-to-end prediction time, ECE, and NLL.
+Per-image predictions and reliability CSV/PNG files are written beside the JSON.
+
+New training writes `best_resnet50_<mode>.pth` and a `.metadata.json` sidecar
+containing class order, preprocessing, split fingerprints and weight hashes. The
+app prefers new full/dual checkpoints automatically. Sidecars must stay with their
+weights. Legacy dual weights retain their no-tumor gate; new `roi_v1` weights use
+the label-independent crop path. New training also converts both views to
+grayscale RGB, matching the app. The UI's available segmentation choices are
+validated against a new checkpoint's recorded segmenter and checksum.
+
+Fit temperature scaling on validation data after training, then evaluate once on
+test data. Fitting is refused for test data or legacy weights without a verifiable
+training split:
+
+```bash
+python scripts/eval_classification.py --manifest data/processed/classification_split_v1.json --split val --mode full --fit-temperature models/classification/full_temperature.json --output outputs/metrics/full_validation.json
+python scripts/eval_classification.py --manifest data/processed/classification_split_v1.json --split test --mode full --temperature models/classification/full_temperature.json --output outputs/metrics/full_calibrated_test.json
+MRI_CALIBRATION=models/classification/full_temperature.json ./scripts/start_frontend.command
+```
+
+Calibration artifacts are checked against the selected model, split, class order,
+and any segmenter/gate weights. An incompatible artifact is rejected. With no
+artifact configured, the app reports uncalibrated softmax scores. Temperature
+scaling does not establish clinical reliability or change the predicted class.
+Restart the frontend after replacing weights, metadata, or calibration files;
+loaded models and calibration settings are cached for the server session.
+
+The optional UI report is now a factual model summary: prediction, score type,
+segmentation pixel coverage and attention coordinates. It makes no anatomical
+or diagnostic findings from the heatmap.
+
 The main notebook uses the shared, label-independent patch generator and stores
-new crops in `data/processed/patches_resunet_label_independent/`. Existing saved
+new lossless PNG crops in `data/processed/patches_resunet_roi_v1/`. Existing saved
 metrics describe the original experiments; retraining with the corrected crops
 can produce different results.
+
+Future segmentation training and validation also use the deployed `[0, 1]`
+grayscale input range. Earlier shared training transforms used `[-1, 1]`, which
+did not match `predict_mask`. Existing weights and their serving path are
+unchanged; saved segmentation metrics are historical results, and comparisons
+with retrained segmenters must be rerun.
 
 ## What is not in git
 

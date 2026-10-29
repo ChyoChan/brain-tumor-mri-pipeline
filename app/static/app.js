@@ -232,7 +232,7 @@ function renderReport(text) {
   document.getElementById("copy-label").textContent = "Copy";
   clearTimeout(copyTimer);
   if (!hasReport) return;
-  const sections = text.split(/(?:^|\n)\s*(Findings|Impression|Recommendation):\s*/i);
+  const sections = text.split(/(?:^|\n)\s*(Prediction|Model score|Segmentation coverage|Explanation|Limitations|Findings|Impression|Recommendation):\s*/i);
   if (sections[0].trim()) {
     const paragraph = document.createElement("p");
     paragraph.textContent = sections[0].trim();
@@ -259,10 +259,12 @@ function renderDetails(data) {
     ["Explanation", data.explanation_method || "Grad-CAM"],
     ["Region / attention overlap", data.stage_iou == null ? "Not available" : data.stage_iou.toFixed(3)],
   ];
-  if (data.classifier_mode === "dual" && data.classifier_gate) {
+  if (data.classifier_mode === "dual" && data.preprocessing_contract === "legacy_gate_v1" && data.classifier_gate) {
     entries.push(["Full-image gate", `${classLabels[data.classifier_gate.prediction] || data.classifier_gate.prediction} (${(data.classifier_gate.score * 100).toFixed(1)}%)`]);
   }
   entries.push(["Report", data.report_generated === false ? "Skipped" : "Template summary"]);
+  entries.push(["Preprocessing", data.preprocessing_contract || "Legacy checkpoint"]);
+  entries.push(["Score calibration", data.score_type === "temperature_scaled_softmax" ? `Validation temperature: ${data.temperature.toFixed(3)}` : "Uncalibrated softmax"]);
   entries.forEach(([label, value]) => {
     const row = document.createElement("div");
     const term = document.createElement("dt");
@@ -431,6 +433,9 @@ async function runPipeline() {
     renderProbs(data.probabilities);
     renderReport(data.report);
     renderDetails(data);
+    document.querySelector(".score-note").textContent = data.score_type === "temperature_scaled_softmax"
+      ? "Research model output. Scores use validation-fitted temperature scaling. Optional summaries use predefined templates."
+      : "Research model output. Scores are uncalibrated. Optional summaries use predefined templates.";
     resultAvailable = true;
     findings.hidden = false;
     resultEmpty.hidden = true;
@@ -488,7 +493,7 @@ nextSamples.addEventListener("click", () => loadGallery(galleryPage + 1));
 clsSelect.addEventListener("change", () => {
   document.getElementById("classifier-hint").textContent = clsSelect.value === "full"
     ? "Full image is the recommended baseline."
-    : "Experimental: combines the region crop and full image with a no-tumor gate.";
+    : "Combines the region crop and full image. Legacy weights also use a no-tumor gate.";
 });
 copyBtn.addEventListener("click", async () => {
   if (!reportText) return;

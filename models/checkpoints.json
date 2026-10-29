@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "checkpoints": [
+    {
+      "id": "best_unet_real_mask",
+      "path": "models/segmentation/best_unet_real_mask.pth",
+      "sha256": "974d2bd16b32244362522248b8284e5b4694e3bb30b7e26156bad1998791c661",
+      "bytes": 124236067,
+      "url": null
+    },
+    {
+      "id": "best_resunet",
+      "path": "models/segmentation/best_resunet.pth",
+      "sha256": "a6eeceb5ae42902e760e720192926bca7d1a67ddd0071f0b5f79e1cd23bc5749",
+      "bytes": 130016673,
+      "url": null
+    },
+    {
+      "id": "best_attention_unet",
+      "path": "models/segmentation/best_attention_unet.pth",
+      "sha256": "8e42123541fe2ca3593dc559b86ea351a37ad6e10546489975e54d21f1e414d7",
+      "bytes": 125677483,
+      "url": null
+    },
+    {
+      "id": "best_resnet50_dual_input",
+      "path": "models/classification/best_resnet50_dual_input.pth",
+      "sha256": "f33790764e81f29614b6c42a2d54fc9bc8c85ac60a72062067887c2a3713ca4e",
+      "bytes": 94426149,
+      "url": null
+    },
+    {
+      "id": "best_resnet50_pure_classification",
+      "path": "models/classification/pure_baseline/best_resnet50_pure_classification.pth",
+      "sha256": "2430a80c80fe1136aea20365d9a228eb1d2d6315ffffdb5ffd4c8883a9ed67eb",
+      "bytes": 94391451,
+      "url": null
+    }
+  ]
+}

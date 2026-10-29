@@ -58,12 +58,12 @@
           <label for="cls-mode">Classify the scan</label>
           <select id="cls-mode" aria-describedby="classifier-hint">
             <option value="full" selected>Full image</option>
-            <option value="dual">Gated dual input</option>
+            <option value="dual">Dual input</option>
           </select>
           <p class="control-hint" id="classifier-hint">Full image is the recommended baseline.</p>
         </div>
         <label class="report-option" for="generate-report"><input id="generate-report" type="checkbox" checked aria-describedby="report-option-hint" /><span>Generate report</span></label>
-        <p class="control-hint" id="report-option-hint">Optional template summary. Turn off to show model results only.</p>
+        <p class="control-hint" id="report-option-hint">Optional summary of model outputs. Turn off to skip the text summary.</p>
       </section>
 
       <div class="run-area">
@@ -109,7 +109,7 @@
       <div class="findings" id="findings" hidden>
         <section class="prediction" aria-label="Predicted class"><p class="prediction-label">Model prediction</p><h3 id="result-title"></h3><div class="prediction-score"><span id="model-score"></span><span>model score</span></div><div class="badge" id="pred-badge" hidden></div></section>
         <section class="probs" id="probs" aria-label="Class scores"></section>
-        <article class="report" id="report-panel"><div class="report-head"><h3>Scan summary</h3><button class="text-button" id="copy-btn" type="button"><svg class="icon" aria-hidden="true"><use href="#icon-copy" /></svg><span id="copy-label">Copy</span></button></div><div id="report-text"></div></article>
+        <article class="report" id="report-panel"><div class="report-head"><h3>Model summary</h3><button class="text-button" id="copy-btn" type="button"><svg class="icon" aria-hidden="true"><use href="#icon-copy" /></svg><span id="copy-label">Copy</span></button></div><div id="report-text"></div></article>
         <p class="report-skipped" id="report-skipped" hidden>Report generation was turned off for this analysis.</p>
         <details class="model-details"><summary>Analysis details</summary><dl id="analysis-details"></dl><div id="analysis-notes"></div></details>
       </div>
@@ -124,6 +124,6 @@
     <div class="samples browser-grid" id="browser-grid" aria-label="Local MRI images"></div>
     <div class="browser-pagination"><button class="secondary-button" id="previous-samples" type="button" disabled>Previous</button><span id="sample-page"></span><button class="secondary-button" id="next-samples" type="button" disabled>Next</button></div>
   </dialog>
-  <script src="/static/app.js?v=6"></script>
+  <script src="/static/app.js?v=7"></script>
 </body>
 </html>

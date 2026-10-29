@@ -1,0 +1,10 @@
+-r requirements-runtime.txt
+# Training, evaluation plots, and experimental notebook reporting.
+pandas==2.3.3
+matplotlib==3.11.0
+seaborn==0.13.2
+albumentations==1.4.24
+# Albumentations requires this distribution; keep it aligned with OpenCV above.
+opencv-python-headless==4.13.0.92
+medpy==0.5.2
+transformers==5.8.1
